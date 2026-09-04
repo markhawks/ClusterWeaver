@@ -18,6 +18,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 ### Changed
 
 - Project list rows can be opened directly with a mouse or keyboard.
+- Copy buttons now work from remote HTTP development addresses using a compatible clipboard fallback.
 
 ### Planned
 

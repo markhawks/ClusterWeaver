@@ -3,13 +3,35 @@ document.addEventListener("click", async (event) => {
   if (!button) return;
   const source = document.getElementById(button.dataset.target);
   const status = button.closest(".card-body, .card")?.querySelector(".copy-status, #copy-status");
+  const copyWithSelection = (text) => {
+    const temporary = document.createElement("textarea");
+    temporary.value = text;
+    temporary.setAttribute("readonly", "");
+    temporary.style.position = "fixed";
+    temporary.style.opacity = "0";
+    document.body.appendChild(temporary);
+    temporary.select();
+    temporary.setSelectionRange(0, temporary.value.length);
+    const copied = document.execCommand("copy");
+    temporary.remove();
+    return copied;
+  };
   try {
-    await navigator.clipboard.writeText(source.textContent);
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(source.textContent);
+    } else if (!copyWithSelection(source.textContent)) {
+      throw new Error("Legacy clipboard copy was rejected");
+    }
     if (status) status.textContent = "Copied to clipboard.";
   } catch (_error) {
-    if (status) {
-      status.textContent = "Copy failed. Select the text manually.";
-      status.className = "small text-danger";
+    try {
+      if (!copyWithSelection(source.textContent)) throw new Error("Clipboard copy was rejected");
+      if (status) status.textContent = "Copied to clipboard.";
+    } catch (_fallbackError) {
+      if (status) {
+        status.textContent = "Copy failed. Select the text manually.";
+        status.className = "small text-danger";
+      }
     }
   }
 });

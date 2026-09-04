@@ -83,3 +83,10 @@ def test_node_form_explains_site(client):
     response = client.get(f"{response.headers['Location']}/nodes/new")
     assert b"Roma, Datacenter-A, VMware-DC1" in response.data
     assert b"Geographic cluster" in response.data
+
+
+def test_copy_script_has_http_fallback(client):
+    response = client.get("/static/js/app.js")
+    assert response.status_code == 200
+    assert b'document.execCommand("copy")' in response.data
+    assert b"window.isSecureContext" in response.data
