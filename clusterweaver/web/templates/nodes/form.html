@@ -26,6 +26,9 @@
       <div class="form-text">Physical or logical location of this node; use the same value for nodes in the same site.</div>
     </div>
     <div class="row"><div class="col-md-6">{{ render_field(form.management_ip) }}</div><div class="col-md-6">{{ render_field(form.cluster_ip) }}</div></div>
+    <div class="row"><div class="col-md-6">{{ render_field(form.primary_interface) }}</div><div class="col-md-6">{{ render_field(form.secondary_interface) }}</div></div>
+    <datalist id="network-interface-options">{% for name in interface_names %}<option value="{{ name }}">{% endfor %}</datalist>
+    <div class="form-text mb-3">Select a known interface or type a new name. Custom names are saved and suggested for future nodes.</div>
     <div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save node</button><a class="btn btn-outline-secondary" href="{{ url_for('projects.detail', project_id=project.id) }}">Cancel</a></div>
   </form>
 </div></div></div></div>

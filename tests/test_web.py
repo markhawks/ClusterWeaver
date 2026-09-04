@@ -35,9 +35,13 @@ def test_node_creation_updates_generated_script(client):
     response = client.post(f"{project_url}/nodes/new", data={
         "hostname": "node01", "fqdn": "node01.example.test", "site": "Roma",
         "management_ip": "10.0.0.11", "cluster_ip": "192.168.0.11",
+        "primary_interface": "ens160", "secondary_interface": "custom1",
     }, follow_redirects=True)
     assert response.status_code == 200
     assert b"node01.example.test" in response.data
+    assert b"ens160 / custom1" in response.data
+    add_node_page = client.get(f"{project_url}/nodes/new")
+    assert b'<option value="custom1">' in add_node_page.data
 
 
 def test_invalid_ip_is_rejected(client):

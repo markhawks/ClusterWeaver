@@ -42,5 +42,6 @@ class NodeRecord(Base):
     site: Mapped[str] = mapped_column(String(120), default="")
     management_ip: Mapped[str] = mapped_column(String(45), default="")
     cluster_ip: Mapped[str] = mapped_column(String(45), default="")
+    primary_interface: Mapped[str] = mapped_column(String(64), default="")
+    secondary_interface: Mapped[str] = mapped_column(String(64), default="")
     project: Mapped[ProjectRecord] = relationship(back_populates="nodes")
-

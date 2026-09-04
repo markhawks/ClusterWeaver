@@ -9,6 +9,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 ### Added
 
 - AGPL-3.0 copyleft license and community contribution/security documentation.
+- Editable primary and secondary node interface selectors with reusable custom names.
 
 ### Changed
 

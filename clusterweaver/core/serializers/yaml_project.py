@@ -33,6 +33,8 @@ def project_to_dict(project: ProjectData) -> dict:
                 "site": node.site or "",
                 "management_ip": node.management_ip or "",
                 "cluster_ip": node.cluster_ip or "",
+                "primary_interface": node.primary_interface or "",
+                "secondary_interface": node.secondary_interface or "",
             }
             for node in sorted(project.nodes, key=lambda item: item.hostname.lower())
         ],
@@ -59,4 +61,3 @@ def write_project_yaml(project: ProjectData, projects_root: Path) -> tuple[Path,
         if os.path.exists(temporary_name):
             os.unlink(temporary_name)
     return destination, True
-

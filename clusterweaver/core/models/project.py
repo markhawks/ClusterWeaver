@@ -10,6 +10,8 @@ class NodeData:
     site: str = ""
     management_ip: str = ""
     cluster_ip: str = ""
+    primary_interface: str = ""
+    secondary_interface: str = ""
     id: int | None = None
 
 
@@ -28,4 +30,3 @@ class ProjectData:
     created_at: datetime | None = None
     updated_at: datetime | None = None
     id: int | None = None
-

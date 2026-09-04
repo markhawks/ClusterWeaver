@@ -122,6 +122,8 @@ def create_node(project_id: int):
                 site=form.site.data.strip() if form.site.data else "",
                 management_ip=form.management_ip.data.strip() if form.management_ip.data else "",
                 cluster_ip=form.cluster_ip.data.strip() if form.cluster_ip.data else "",
+                primary_interface=form.primary_interface.data.strip() if form.primary_interface.data else "",
+                secondary_interface=form.secondary_interface.data.strip() if form.secondary_interface.data else "",
             )
             record.updated_at = datetime.now(timezone.utc)
             db.session.commit()
@@ -132,7 +134,7 @@ def create_node(project_id: int):
             persist_files(record.id, f"Add node {form.hostname.data.strip()} to {record.name}")
             flash("Node added.", "success")
             return redirect(url_for("projects.detail", project_id=record.id))
-    return render_template("nodes/form.html", form=form, project=record, title="Add node")
+    return render_template("nodes/form.html", form=form, project=record, title="Add node", interface_names=repository().interface_names())
 
 
 @projects_bp.route("/projects/<int:project_id>/nodes/<int:node_id>/edit", methods=["GET", "POST"])
@@ -150,6 +152,8 @@ def edit_node(project_id: int, node_id: int):
         node.site = form.site.data.strip() if form.site.data else ""
         node.management_ip = form.management_ip.data.strip() if form.management_ip.data else ""
         node.cluster_ip = form.cluster_ip.data.strip() if form.cluster_ip.data else ""
+        node.primary_interface = form.primary_interface.data.strip() if form.primary_interface.data else ""
+        node.secondary_interface = form.secondary_interface.data.strip() if form.secondary_interface.data else ""
         record.updated_at = datetime.now(timezone.utc)
         try:
             db.session.commit()
@@ -160,7 +164,7 @@ def edit_node(project_id: int, node_id: int):
             persist_files(record.id, f"Update node {node.hostname} in {record.name}")
             flash("Node updated.", "success")
             return redirect(url_for("projects.detail", project_id=record.id))
-    return render_template("nodes/form.html", form=form, project=record, title="Edit node")
+    return render_template("nodes/form.html", form=form, project=record, title="Edit node", interface_names=repository().interface_names())
 
 
 @projects_bp.get("/projects/<int:project_id>/precheck.sh")

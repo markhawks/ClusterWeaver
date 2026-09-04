@@ -22,4 +22,14 @@ class NodeForm(FlaskForm):
     )
     management_ip = StringField("Management IP", validators=[Optional(), Length(max=45), valid_ip])
     cluster_ip = StringField("Cluster/private IP", validators=[Optional(), Length(max=45), valid_ip])
+    primary_interface = StringField(
+        "Primary interface",
+        validators=[Optional(), Length(max=64)],
+        render_kw={"list": "network-interface-options", "placeholder": "e.g. ens160"},
+    )
+    secondary_interface = StringField(
+        "Secondary interface",
+        validators=[Optional(), Length(max=64)],
+        render_kw={"list": "network-interface-options", "placeholder": "e.g. ens224"},
+    )
     submit = SubmitField("Save node")

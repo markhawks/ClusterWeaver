@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, union_all
 from sqlalchemy.orm import selectinload
 
 from clusterweaver.core.models import NodeData, ProjectData
@@ -29,6 +31,8 @@ def to_domain(record: ProjectRecord) -> ProjectData:
                 site=node.site,
                 management_ip=node.management_ip,
                 cluster_ip=node.cluster_ip,
+                primary_interface=node.primary_interface,
+                secondary_interface=node.secondary_interface,
             )
             for node in record.nodes
         ],
@@ -57,6 +61,14 @@ class ProjectRepository:
             statement = statement.where(ProjectRecord.id != excluding_id)
         return self.session.scalar(statement) is not None
 
+    def interface_names(self) -> list[str]:
+        statement = union_all(
+            select(NodeRecord.primary_interface.label("name")),
+            select(NodeRecord.secondary_interface.label("name")),
+        )
+        saved = {value.strip() for value in self.session.scalars(statement) if value and value.strip()}
+        return sorted({"ens160", "ens224", *saved})
+
     def add_project(self, **values) -> ProjectRecord:
         record = ProjectRecord(**values)
         self.session.add(record)
@@ -68,4 +80,3 @@ class ProjectRepository:
         self.session.add(node)
         self.session.flush()
         return node
-
