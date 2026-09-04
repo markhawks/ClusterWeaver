@@ -65,6 +65,10 @@ def test_node_creation_updates_generated_script(client, app):
     network_download = client.get(f"{project_url}/network-check.sh")
     assert network_download.status_code == 200
     assert b"network verification" in network_download.data
+    hosts_download = client.get(f"{project_url}/hosts-update.sh")
+    assert hosts_download.status_code == 200
+    assert b"192.168.0.11 node01lanc" in hosts_download.data
+    assert b"192.168.0.12 node02lanc" in hosts_download.data
 
 
 def test_invalid_ip_is_rejected(client):

@@ -14,6 +14,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 - Official project logo in the repository, README, application header, and browser bookmarks.
 - High-contrast white logo background for application navigation and browser bookmarks.
 - Read-only RHEL 9.8 network-interface verification as generated step 02.
+- Idempotent, backed-up RHEL 9.8 `/etc/hosts` population as generated step 03.
 
 ### Changed
 

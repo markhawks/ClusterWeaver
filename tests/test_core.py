@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 import yaml
 
-from clusterweaver.core.generators import generate_network_check, generate_precheck
+from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_precheck
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
@@ -52,6 +52,18 @@ def test_rhel_98_network_check_is_read_only_and_node_aware():
     assert "EXPECTED_CLUSTER_IP=192.168.1.11" in script
     assert "no changes made" in script
     assert "nmcli" in script and "ip -brief link" in script
+
+
+def test_hosts_update_uses_private_ips_nodenames_and_safety_guards():
+    project = sample_project()
+    project.nodes.append(NodeData(hostname="node02", nodename="node02lanc", cluster_ip="192.168.1.12"))
+    script = generate_hosts_update(project)
+    assert "192.168.1.11 node01lanc" in script
+    assert "192.168.1.12 node02lanc" in script
+    assert "cp -a" in script and "mktemp" in script
+    assert 'MARKER=\'ClusterWeaver ' in script
+    assert 'echo "# BEGIN ${MARKER}"' in script
+    assert "EUID" in script
 
 
 def test_git_commits_changes_only_once(tmp_path):

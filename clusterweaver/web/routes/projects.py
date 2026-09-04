@@ -4,7 +4,7 @@ from io import BytesIO
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, send_file, url_for
 from sqlalchemy.exc import IntegrityError
 
-from clusterweaver.core.generators import generate_network_check, generate_precheck
+from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_precheck
 from clusterweaver.core.services.projects import ProjectFileService
 from clusterweaver.core.services.changelog import read_changelog
 from clusterweaver.core.services.slugs import make_slug
@@ -93,7 +93,7 @@ def create_project():
 @projects_bp.get("/projects/<int:project_id>")
 def detail(project_id: int):
     project = project_or_404(project_id)
-    return render_template("projects/detail.html", project=project, script=generate_precheck(project), network_script=generate_network_check(project))
+    return render_template("projects/detail.html", project=project, script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project))
 
 
 @projects_bp.route("/projects/<int:project_id>/edit", methods=["GET", "POST"])
@@ -208,3 +208,10 @@ def download_network_check(project_id: int):
     project = project_or_404(project_id)
     content = generate_network_check(project).encode("utf-8")
     return send_file(BytesIO(content), mimetype="text/x-shellscript", as_attachment=True, download_name="02-network-check.sh")
+
+
+@projects_bp.get("/projects/<int:project_id>/hosts-update.sh")
+def download_hosts_update(project_id: int):
+    project = project_or_404(project_id)
+    content = generate_hosts_update(project).encode("utf-8")
+    return send_file(BytesIO(content), mimetype="text/x-shellscript", as_attachment=True, download_name="03-hosts-update.sh")
