@@ -8,7 +8,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ### Added
 
-- Apache-2.0 open-source license and community contribution/security documentation.
+- AGPL-3.0 copyleft license and community contribution/security documentation.
 
 ### Planned
 

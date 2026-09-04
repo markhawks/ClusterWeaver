@@ -20,4 +20,4 @@ Thank you for helping improve ClusterWeaver.
 6. Update `CHANGELOG.md` under `Unreleased`.
 7. Open a pull request describing the operational procedure and validation used.
 
-By submitting a contribution, you agree that it is licensed under Apache License 2.0.
+By submitting a contribution, you agree that it is licensed under GNU Affero General Public License v3.0.
