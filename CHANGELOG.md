@@ -6,6 +6,8 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-04
+
 ### Added
 
 - Persistent per-node workflow execution status displayed in collapsed script panels.

@@ -42,7 +42,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"clusterweaver-sphere-logo.png" in response.data
     assert b"cw-icon-home" in response.data
     assert b"cw-icon-notebook" in response.data
-    assert b"Changelog" in response.data and b"v0.1.1" in response.data
+    assert b"Changelog" in response.data and b"v0.1.2" in response.data
     assert b'rel="icon"' in response.data
     assert b"Generated workflow" in response.data
     assert b"Step 00" in response.data

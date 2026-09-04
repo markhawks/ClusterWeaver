@@ -6,12 +6,12 @@ Updated: 2026-09-04 (Europe/Rome)
 
 - Working directory: `/var/www/html/ClusterWeaver`
 - Git branch: `main`
-- Current released version: `0.1.1`
+- Current released version: `0.1.2`
 - Application version source: `clusterweaver/version.py`
 - Service: `clusterweaver-control`
 - Database migration head: `0007_step_results`
 
-## Work completed after release 0.1.1
+## Work released in 0.1.2
 
 ### Workflow execution
 
@@ -53,7 +53,7 @@ Updated: 2026-09-04 (Europe/Rome)
   - red arrow when SSH discovery has at least one failure;
   - grey arrow while setup is incomplete.
 - Added minimal Projects, Home, notebook, cluster, VM, server, settings, and search icons.
-- Changelog is right-aligned in the navigation and displays `v0.1.1`.
+- Changelog is right-aligned in the navigation and displays `v0.1.2`.
 
 ## Validation performed
 
@@ -73,7 +73,7 @@ Expected test result: `40 passed`.
 - Passwords entered for SSH operations are request-scoped and are not stored in project execution results.
 - Older Step 00 actions performed before migration `0007` have no execution records. Those projects must execute Step 00 again before Step 01 becomes available.
 - Peer SSH trust is idempotent: existing Ed25519 keys are reused and exact authorized keys are not duplicated.
-- The current changes belong to the post-0.1.1 unreleased section; no new release or tag has been created.
+- Release `0.1.2` contains the remote workflow, execution-state, network-safety, project-list, and navigation work described above.
 
 ## Suggested next session start
 
@@ -86,5 +86,5 @@ Expected test result: `40 passed`.
 ## Likely next work
 
 - Continue the generated workflow after Step 04.
-- Decide the next release number for the accumulated unreleased functionality.
+- Define the next generated workflow step after Step 04.
 - Exercise Step 00 and Steps 01–04 end-to-end on the two-node RHEL 10.2 KVM test cluster.
