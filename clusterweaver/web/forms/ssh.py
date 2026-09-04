@@ -29,3 +29,14 @@ class PrecheckRunForm(FlaskForm):
 class NetworkCheckRunForm(FlaskForm):
     password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
     submit = SubmitField("Run on all nodes")
+
+
+class HostsUpdateRunForm(FlaskForm):
+    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    confirm = BooleanField("I understand that this updates /etc/hosts on every node and creates a backup.", validators=[DataRequired()])
+    submit = SubmitField("Run on all nodes")
+
+
+class ConnectivityRunForm(FlaskForm):
+    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    submit = SubmitField("Run on all nodes")

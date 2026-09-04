@@ -1,7 +1,17 @@
 from clusterweaver.persistence import db
-from clusterweaver.persistence.models import NodeRecord, ProjectRecord
+from clusterweaver.persistence.models import NodeRecord, ProjectRecord, StepExecutionRecord
 import subprocess
 from types import SimpleNamespace
+
+
+def mark_step_00_complete(app, through="00c"):
+    steps = ("00a", "00b", "00c")
+    with app.app_context():
+        project = db.session.query(ProjectRecord).one()
+        for node in project.nodes:
+            for step in steps[:steps.index(through) + 1]:
+                db.session.add(StepExecutionRecord(project_id=project.id, node_id=node.id, step=step, status="pass", output="test pass"))
+        db.session.commit()
 
 
 def test_new_project_suggests_two_node_ha_examples(client):
@@ -30,8 +40,14 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Created" in response.data
     assert b"Last modified" in response.data
     assert b"clusterweaver-sphere-logo.png" in response.data
+    assert b"cw-icon-home" in response.data
+    assert b"cw-icon-notebook" in response.data
+    assert b"Changelog" in response.data and b"v0.1.1" in response.data
     assert b'rel="icon"' in response.data
     assert b"Generated workflow" in response.data
+    assert b"Step 00" in response.data
+    assert b"SSH discovery" in response.data and b"Peer SSH trust" in response.data and b"Network configuration" in response.data
+    assert b'id="workflow-run-01" class="btn btn-outline-secondary"' in response.data
     assert response.data.count(b"Show script") == 4
     assert response.data.count(b"Full screen") == 4
     assert b'id="script-viewer"' in response.data
@@ -45,6 +61,17 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert (root / ".git").exists()
     project_list = client.get("/")
     assert b'class="clickable-row"' in project_list.data
+    assert b"Hypervisor" in project_list.data and b"N/A" in project_list.data
+    assert b"cw-icon-projects" in project_list.data
+    assert b"cw-icon-search" in project_list.data
+    assert b">01</td>" in project_list.data
+    assert b"Remote Ready" in project_list.data and b"Remote setup incomplete" in project_list.data
+    assert b'<thead><tr><th class="text-center"><a' in project_list.data
+    assert b"Project number" in project_list.data
+    filtered = client.get("/?column=customer&q=Example&sort=name&direction=asc")
+    assert b"DB2 PROD" in filtered.data and b"Sorted asc" in filtered.data
+    no_match = client.get("/?column=name&q=does-not-exist")
+    assert b"No matching projects" in no_match.data
     assert b'role="link"' in project_list.data
     history = subprocess.run(["git", "log", "--oneline"], cwd=root, check=True, capture_output=True, text=True)
     assert "Create DB2 PROD project" in history.stdout
@@ -194,6 +221,15 @@ def test_ssh_discovery_uses_bootstrap_endpoint_without_echoing_password(client, 
     assert b"RHEL 10.2" in response.data and b"SHA256:test" in response.data
     assert b"one-time-password" not in response.data
     assert captured["password"] == "one-time-password"
+    project_page = client.get(project_url)
+    assert b'id="bootstrap-run-00b" class="btn btn-sm btn-success"' in project_page.data
+    monkeypatch.setattr("clusterweaver.web.routes.projects.discover_node", lambda node, password: SimpleNamespace(hostname=node.hostname, endpoint="test:22", ok=False, output="discovery failed"))
+    client.post(f"{project_url}/ssh-discovery", data={"password": "one-time-password"})
+    failed_page = client.get(project_url)
+    assert b'id="bootstrap-run-00a" class="btn btn-sm btn-danger"' in failed_page.data
+    assert b"</span> Failed</button>" in failed_page.data
+    project_list = client.get("/")
+    assert b'text-danger" role="img" aria-label="SSH bootstrap discovery failed"' in project_list.data
 
 
 def test_network_apply_requires_confirmation_and_updates_bootstrap_ip(client, app, monkeypatch):
@@ -209,6 +245,7 @@ def test_network_apply_requires_confirmation_and_updates_bootstrap_ip(client, ap
     })
     with app.app_context():
         node_id = db.session.query(NodeRecord.id).scalar()
+    mark_step_00_complete(app, through="00b")
     fake = SimpleNamespace(hostname="node01", endpoint="192.168.124.11:22", ok=True, output="configured", rollback_pending=False)
     monkeypatch.setattr("clusterweaver.web.routes.projects.configure_node_network", lambda node, password: fake)
     rejected = client.post(f"{project_url}/network-apply", data={"node_id": node_id, "password": "temporary"}, follow_redirects=True)
@@ -232,7 +269,7 @@ def test_network_apply_shows_running_progress(client):
     assert b"Configuration running" in script.data
 
 
-def test_remote_prechecks_run_from_gui_and_report_per_node(client, monkeypatch):
+def test_remote_prechecks_run_from_gui_and_report_per_node(client, app, monkeypatch):
     project = client.post("/projects/new", data={
         "name": "Remote Precheck", "customer": "Lab", "rhel_major": "10", "rhel_minor": "2",
         "platform_type": "virtual", "hypervisor": "kvm", "node_count": "1",
@@ -243,22 +280,34 @@ def test_remote_prechecks_run_from_gui_and_report_per_node(client, monkeypatch):
         "management_gateway": "192.168.124.1", "primary_interface": "enp1s0",
         "bootstrap_ip": "192.168.124.11", "ssh_port": "22",
     })
+    mark_step_00_complete(app)
+    assert b'aria-label="Remote ready"' in client.get("/").data
     page = client.get(project_url)
     assert b"Run on nodes" in page.data and b'id="precheck-run-dialog"' in page.data
+    assert b'id="workflow-run-01" class="btn btn-success"' in page.data
     captured = {}
     def fake_run(node, password, script):
         captured.update(password=password, script=script)
         return SimpleNamespace(hostname=node.hostname, endpoint="192.168.124.11:22", ok=True, output="precheck complete", fingerprint="SHA256:test")
-    monkeypatch.setattr("clusterweaver.web.routes.projects.run_read_only_script", fake_run)
+    monkeypatch.setattr("clusterweaver.web.routes.projects.run_remote_script", fake_run)
     response = client.post(f"{project_url}/run-prechecks", data={"password": "temporary-password"})
     assert response.status_code == 200
     assert b"Remote pre-checks" in response.data and b"precheck complete" in response.data
     assert b"temporary-password" not in response.data
     assert captured["password"] == "temporary-password"
     assert captured["script"].startswith("#!/bin/bash")
+    project_page = client.get(project_url)
+    assert b"Latest execution" in project_page.data
+    assert b"node01" in project_page.data and b">PASS<" in project_page.data
+    assert b'data-for-collapse="precheck-collapse"' in project_page.data
+    monkeypatch.setattr("clusterweaver.web.routes.projects.run_remote_script", lambda node, password, script: SimpleNamespace(hostname=node.hostname, endpoint="test:22", ok=False, output="precheck failed"))
+    client.post(f"{project_url}/run-prechecks", data={"password": "temporary-password"})
+    failed_page = client.get(project_url)
+    assert b'id="workflow-run-01" class="btn btn-danger"' in failed_page.data
+    assert "Failed — run again".encode() in failed_page.data
 
 
-def test_remote_network_check_is_available_from_gui(client, monkeypatch):
+def test_remote_network_check_is_available_from_gui(client, app, monkeypatch):
     project = client.post("/projects/new", data={
         "name": "Remote Network Check", "customer": "Lab", "rhel_major": "10", "rhel_minor": "2",
         "platform_type": "virtual", "hypervisor": "kvm", "node_count": "1",
@@ -270,16 +319,35 @@ def test_remote_network_check_is_available_from_gui(client, monkeypatch):
         "cluster_ip": "192.168.200.11/24", "cluster_gateway": "192.168.200.1", "secondary_interface": "enp7s0",
         "bootstrap_ip": "192.168.124.11", "ssh_port": "22",
     })
+    mark_step_00_complete(app)
     page = client.get(project_url)
     assert b'id="network-check-run-dialog"' in page.data
     captured = {}
     def fake_run(node, password, script):
         captured.update(password=password, script=script)
         return SimpleNamespace(hostname=node.hostname, endpoint="192.168.124.11:22", ok=True, output="Network verification PASSED", fingerprint="SHA256:test")
-    monkeypatch.setattr("clusterweaver.web.routes.projects.run_read_only_script", fake_run)
+    monkeypatch.setattr("clusterweaver.web.routes.projects.run_remote_script", fake_run)
+    precheck = client.post(f"{project_url}/run-prechecks", data={"password": "temporary"})
+    assert precheck.status_code == 200
     response = client.post(f"{project_url}/run-network-checks", data={"network-check-password": "temporary"})
     assert response.status_code == 200 and b"Network verification PASSED" in response.data
     assert "RHEL 10.2 network verification" in captured["script"]
+    project_page = client.get(project_url)
+    assert b'data-for-collapse="network-collapse"' in project_page.data
+    assert b">PASS<" in project_page.data
+    hosts = client.post(f"{project_url}/run-hosts-update", data={"hosts-update-password": "temporary", "hosts-update-confirm": "y"})
+    assert hosts.status_code == 200
+    assert b"Remote /etc/hosts update" in hosts.data
+    project_page = client.get(project_url)
+    assert b'data-for-collapse="hosts-collapse"' in project_page.data
+    assert b'id="workflow-run-04" class="btn btn-success"' in project_page.data
+    assert b'id="connectivity-run-dialog"' in project_page.data
+    connectivity = client.post(f"{project_url}/run-network-connectivity", data={"connectivity-password": "temporary"})
+    assert connectivity.status_code == 200
+    assert b"Remote cluster network connectivity" in connectivity.data
+    assert "EXPECTED_RELEASE=10.2" in captured["script"]
+    project_page = client.get(project_url)
+    assert b'data-for-collapse="connectivity-collapse"' in project_page.data
 
 
 def test_copy_script_has_http_fallback(client):

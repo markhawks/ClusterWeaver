@@ -58,8 +58,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggle = document.querySelector(selector);
     if (!toggle) return;
     const isScript = toggle.textContent.trim().toLowerCase().includes("script");
+    const summary = panel.closest(".workflow-script-area")?.querySelector(".workflow-run-summary");
+    panel.addEventListener("show.bs.collapse", () => { summary?.classList.add("d-none"); });
     panel.addEventListener("shown.bs.collapse", () => { toggle.textContent = isScript ? "Hide script" : "Hide"; });
-    panel.addEventListener("hidden.bs.collapse", () => { toggle.textContent = isScript ? "Show script" : "Show"; });
+    panel.addEventListener("hidden.bs.collapse", () => {
+      toggle.textContent = isScript ? "Show script" : "Show";
+      summary?.classList.remove("d-none");
+    });
   });
 
   const major = document.getElementById("rhel_major");

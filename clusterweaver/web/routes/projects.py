@@ -8,12 +8,12 @@ from clusterweaver.core.generators import generate_hosts_update, generate_networ
 from clusterweaver.core.services.projects import ProjectFileService
 from clusterweaver.core.services.changelog import read_changelog
 from clusterweaver.core.services.slugs import make_slug
-from clusterweaver.core.services.ssh_bootstrap import bootstrap_peer_keys, discover_node, run_read_only_script
+from clusterweaver.core.services.ssh_bootstrap import bootstrap_peer_keys, discover_node, run_remote_script
 from clusterweaver.core.services.network_config import configure_node_network
 from clusterweaver.core.validators import host_address, validate_rhel_release
 from clusterweaver.persistence import db
 from clusterweaver.persistence.repositories import ProjectRepository
-from clusterweaver.web.forms import NetworkApplyForm, NetworkCheckRunForm, NodeForm, PrecheckRunForm, ProjectForm, SSHDiscoveryForm, SSHKeyBootstrapForm
+from clusterweaver.web.forms import ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PrecheckRunForm, ProjectForm, SSHDiscoveryForm, SSHKeyBootstrapForm
 
 
 projects_bp = Blueprint("projects", __name__)
@@ -40,6 +40,17 @@ def project_or_404(project_id: int):
     return project
 
 
+def workflow_step_complete(project, results: dict, step: str) -> bool:
+    expected = {node.id for node in project.nodes}
+    records = results.get(step, [])
+    return bool(expected) and {record.node_id for record in records if record.status == "pass"} == expected
+
+
+def workflow_step_failed(project, results: dict, step: str) -> bool:
+    expected = {node.id for node in project.nodes}
+    return any(record.node_id in expected and record.status == "fail" for record in results.get(step, []))
+
+
 def persist_files(project_id: int, message: str) -> bool:
     project = project_or_404(project_id)
     service = ProjectFileService(current_app.config["PROJECTS_ROOT"])
@@ -63,7 +74,69 @@ def add_conflict_errors(form: NodeForm, project_id: int, excluding_id: int | Non
 
 @projects_bp.get("/")
 def index():
-    return render_template("projects/index.html", projects=repository().list())
+    projects = repository().list()
+    remote_results = {project.id: repository().step_results(project.id) for project in projects}
+    remote_ready = {
+        project.id: all(workflow_step_complete(project, remote_results[project.id], step) for step in ("00a", "00b", "00c"))
+        for project in projects
+    }
+    remote_discovery_failed = {
+        project.id: workflow_step_failed(project, remote_results[project.id], "00a")
+        for project in projects
+    }
+    oldest_first = sorted(projects, key=lambda project: (project.created_at, project.id or 0))
+    project_numbers = {project.id: position for position, project in enumerate(oldest_first, start=1)}
+    search_column = request.args.get("column", "all")
+    search_term = request.args.get("q", "").strip()
+    allowed_columns = {"all", "number", "name", "customer", "target", "created", "updated"}
+    if search_column not in allowed_columns:
+        search_column = "all"
+
+    def searchable_values(project) -> dict[str, str]:
+        return {
+            "number": f"{project_numbers[project.id]:02d}",
+            "name": project.name,
+            "customer": project.customer,
+            "target": f"RHEL {project.rhel_major}.{project.rhel_minor}" if project.rhel_minor else f"RHEL {project.rhel_major}",
+            "created": project.created_at.astimezone().strftime("%d/%m/%Y %H:%M"),
+            "updated": project.updated_at.astimezone().strftime("%d/%m/%Y %H:%M"),
+        }
+
+    if search_term:
+        needle = search_term.casefold()
+        projects = [
+            project for project in projects
+            if needle in (" ".join(searchable_values(project).values()) if search_column == "all" else searchable_values(project)[search_column]).casefold()
+        ]
+
+    sort = request.args.get("sort", "updated")
+    direction = request.args.get("direction", "desc")
+    sort_keys = {
+        "number": lambda project: project_numbers[project.id],
+        "name": lambda project: project.name.casefold(),
+        "customer": lambda project: project.customer.casefold(),
+        "target": lambda project: (project.rhel_major, project.rhel_minor),
+        "created": lambda project: (project.created_at, project.id or 0),
+        "updated": lambda project: (project.updated_at, project.id or 0),
+    }
+    if sort not in sort_keys:
+        sort = "updated"
+    if direction not in {"asc", "desc"}:
+        direction = "desc"
+    projects.sort(key=sort_keys[sort], reverse=direction == "desc")
+    sort_links = {
+        column: url_for(
+            "projects.index", sort=column,
+            direction="desc" if sort == column and direction == "asc" else "asc",
+            column=search_column, q=search_term,
+        )
+        for column in sort_keys
+    }
+    return render_template(
+        "projects/index.html", projects=projects, project_numbers=project_numbers,
+        search_column=search_column, search_term=search_term, sort=sort, direction=direction,
+        sort_links=sort_links, remote_ready=remote_ready, remote_discovery_failed=remote_discovery_failed,
+    )
 
 
 @projects_bp.get("/changelog")
@@ -98,9 +171,23 @@ def create_project():
 @projects_bp.get("/projects/<int:project_id>")
 def detail(project_id: int):
     project = project_or_404(project_id)
+    workflow_results = repository().step_results(project_id)
+    bootstrap_ready = {
+        "00a": True,
+        "00b": workflow_step_complete(project, workflow_results, "00a"),
+        "00c": workflow_step_complete(project, workflow_results, "00a") and workflow_step_complete(project, workflow_results, "00b"),
+    }
+    bootstrap_failed = {step: workflow_step_failed(project, workflow_results, step) for step in ("00a", "00b", "00c")}
+    workflow_ready = {
+        "01": all(workflow_step_complete(project, workflow_results, step) for step in ("00a", "00b", "00c")),
+        "02": workflow_step_complete(project, workflow_results, "01"),
+        "03": workflow_step_complete(project, workflow_results, "02"),
+        "04": workflow_step_complete(project, workflow_results, "03"),
+    }
+    workflow_failed = {step: workflow_step_failed(project, workflow_results, step) for step in ("01", "02", "03", "04")}
     network_form = NetworkApplyForm()
     network_form.node_id.choices = [(node.id, f"{node.hostname} · {node.bootstrap_ip or 'no bootstrap IP'}") for node in project.nodes]
-    return render_template("projects/detail.html", project=project, script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]))
+    return render_template("projects/detail.html", project=project, script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]))
 
 
 @projects_bp.post("/projects/<int:project_id>/run-prechecks")
@@ -114,8 +201,14 @@ def run_prechecks(project_id: int):
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before running pre-checks.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
+    workflow_results = repository().step_results(project_id)
+    if not all(workflow_step_complete(project, workflow_results, step) for step in ("00a", "00b", "00c")):
+        flash("All three step 00 operations must pass on every node before running step 01.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
     script = generate_precheck(project)
-    results = [run_read_only_script(node, password, script) for node in project.nodes]
+    results = [run_remote_script(node, password, script) for node in project.nodes]
+    repository().save_step_results(project_id, "01", results)
+    db.session.commit()
     return render_template("projects/ssh_results.html", project=project, results=results, title="Remote pre-checks", changed=False)
 
 
@@ -130,9 +223,56 @@ def run_network_checks(project_id: int):
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before running network verification.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
+    if not workflow_step_complete(project, repository().step_results(project_id), "01"):
+        flash("Step 01 must pass on every node before running step 02.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
     script = generate_network_check(project)
-    results = [run_read_only_script(node, password, script) for node in project.nodes]
+    results = [run_remote_script(node, password, script) for node in project.nodes]
+    repository().save_step_results(project_id, "02", results)
+    db.session.commit()
     return render_template("projects/ssh_results.html", project=project, results=results, title="Remote network verification", changed=False)
+
+
+@projects_bp.post("/projects/<int:project_id>/run-hosts-update")
+def run_hosts_update(project_id: int):
+    project = project_or_404(project_id)
+    form = HostsUpdateRunForm(prefix="hosts-update")
+    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    if not form.validate_on_submit() or not password:
+        flash("Password and explicit confirmation are required to update /etc/hosts.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
+        flash("Configure an SSH bootstrap IP on every node before updating /etc/hosts.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    if not workflow_step_complete(project, repository().step_results(project_id), "02"):
+        flash("Step 02 must pass on every node before running step 03.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    script = generate_hosts_update(project)
+    results = [run_remote_script(node, password, script) for node in project.nodes]
+    repository().save_step_results(project_id, "03", results)
+    db.session.commit()
+    return render_template("projects/ssh_results.html", project=project, results=results, title="Remote /etc/hosts update", changed=True)
+
+
+@projects_bp.post("/projects/<int:project_id>/run-network-connectivity")
+def run_network_connectivity(project_id: int):
+    project = project_or_404(project_id)
+    form = ConnectivityRunForm(prefix="connectivity")
+    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    if not form.validate_on_submit() or not password:
+        flash("Enter the root password to run cluster network connectivity checks.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
+        flash("Configure an SSH bootstrap IP on every node before checking cluster connectivity.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    if not workflow_step_complete(project, repository().step_results(project_id), "03"):
+        flash("Step 03 must pass on every node before running step 04.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    script = generate_network_connectivity(project)
+    results = [run_remote_script(node, password, script) for node in project.nodes]
+    repository().save_step_results(project_id, "04", results)
+    db.session.commit()
+    return render_template("projects/ssh_results.html", project=project, results=results, title="Remote cluster network connectivity", changed=False)
 
 
 @projects_bp.post("/projects/<int:project_id>/ssh-discovery")
@@ -143,7 +283,12 @@ def ssh_discovery(project_id: int):
     if not form.validate_on_submit() or not password:
         flash("Enter the initial root password to run discovery.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
+    if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
+        flash("Configure an SSH bootstrap IP on every node before running discovery.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
     results = [discover_node(node, password) for node in project.nodes]
+    repository().save_step_results(project_id, "00a", results)
+    db.session.commit()
     return render_template("projects/ssh_results.html", project=project, results=results, title="SSH discovery", changed=False)
 
 
@@ -158,7 +303,15 @@ def ssh_key_bootstrap(project_id: int):
     if len(project.nodes) < 2:
         flash("At least two nodes are required to create peer SSH trust.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
+    if any(not node.bootstrap_ip for node in project.nodes):
+        flash("Configure an SSH bootstrap IP on every node before creating peer SSH trust.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    if not workflow_step_complete(project, repository().step_results(project_id), "00a"):
+        flash("SSH discovery must pass on every node before creating peer SSH trust.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
     results = bootstrap_peer_keys(project.nodes, password)
+    repository().save_step_results(project_id, "00b", results)
+    db.session.commit()
     return render_template("projects/ssh_results.html", project=project, results=results, title="SSH key bootstrap", changed=True)
 
 
@@ -180,12 +333,18 @@ def network_apply(project_id: int):
     if node_record is None:
         abort(404)
     project = project_or_404(project_id)
+    workflow_results = repository().step_results(project_id)
+    if not all(workflow_step_complete(project, workflow_results, step) for step in ("00a", "00b")):
+        flash("SSH discovery and peer SSH trust must pass before applying network configuration.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
     node = next(item for item in project.nodes if item.id == node_record.id)
     result = configure_node_network(node, password)
     if result.ok:
         node_record.bootstrap_ip = host_address(node_record.management_ip)
         record.updated_at = datetime.now(timezone.utc)
-        db.session.commit()
+    repository().save_step_results(project_id, "00c", [result])
+    db.session.commit()
+    if result.ok:
         persist_files(record.id, f"Apply network configuration to {node_record.hostname} in {record.name}")
         project = project_or_404(project_id)
     return render_template("projects/ssh_results.html", project=project, results=[result], title="Network configuration", changed=True)

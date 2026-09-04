@@ -30,6 +30,7 @@ class ProjectRecord(Base):
     nodes: Mapped[list["NodeRecord"]] = relationship(
         back_populates="project", cascade="all, delete-orphan", order_by="NodeRecord.hostname"
     )
+    step_executions: Mapped[list["StepExecutionRecord"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
 class NodeRecord(Base):
@@ -51,3 +52,19 @@ class NodeRecord(Base):
     bootstrap_ip: Mapped[str] = mapped_column(String(45), default="")
     ssh_port: Mapped[int] = mapped_column(Integer, default=22)
     project: Mapped[ProjectRecord] = relationship(back_populates="nodes")
+    step_executions: Mapped[list["StepExecutionRecord"]] = relationship(back_populates="node", cascade="all, delete-orphan")
+
+
+class StepExecutionRecord(Base):
+    __tablename__ = "step_executions"
+    __table_args__ = (UniqueConstraint("project_id", "node_id", "step", name="uq_step_execution_project_node_step"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), index=True)
+    step: Mapped[str] = mapped_column(String(8), index=True)
+    status: Mapped[str] = mapped_column(String(16))
+    output: Mapped[str] = mapped_column(Text, default="")
+    executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    project: Mapped[ProjectRecord] = relationship(back_populates="step_executions")
+    node: Mapped[NodeRecord] = relationship(back_populates="step_executions")

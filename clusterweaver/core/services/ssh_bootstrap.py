@@ -80,7 +80,7 @@ def discover_node(node, password: str) -> SSHResult:
         return SSHResult(node.hostname, endpoint, False, str(exc))
 
 
-def run_read_only_script(node, password: str, script: str) -> SSHResult:
+def run_remote_script(node, password: str, script: str) -> SSHResult:
     """Stream a reviewed script to bash without creating a remote file."""
     endpoint = f"{node.bootstrap_ip or '<not configured>'}:{node.ssh_port or 22}"
     try:

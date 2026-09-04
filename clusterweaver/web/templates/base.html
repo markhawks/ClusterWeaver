@@ -1,4 +1,4 @@
-<!doctype html>
+{% from "_icons.html" import icon %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -12,10 +12,10 @@
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('projects.index') }}" title="Return to project home"><img class="brand-logo" src="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}" alt=""><span>ClusterWeaver <small class="brand-home-hint">· Home</small></span></a>
-      <div class="d-flex align-items-center gap-3">
-        <a class="nav-link text-light" href="{{ url_for('projects.changelog') }}">Changelog</a>
-        <span class="navbar-text d-none d-md-inline">Linux High Availability Cluster Builder &amp; Lifecycle Manager</span>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('projects.index') }}" title="Return to project home"><img class="brand-logo" src="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}" alt=""><span class="d-inline-flex align-items-center gap-2">ClusterWeaver <small class="brand-home-icon" aria-label="Home">{{ icon('home') }}</small></span></a>
+      <div class="d-flex flex-grow-1 align-items-center justify-content-end gap-3">
+        <span class="navbar-text d-none d-md-inline me-auto ms-3">Linux High Availability Cluster Builder &amp; Lifecycle Manager</span>
+        <a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('projects.changelog') }}">{{ icon('notebook') }} <span>Changelog <small class="text-white-50">v{{ clusterweaver_version }}</small></span></a>
       </div>
     </div>
   </nav>

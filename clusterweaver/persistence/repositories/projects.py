@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.validators import host_address
-from clusterweaver.persistence.models import NodeRecord, ProjectRecord
+from clusterweaver.persistence.models import NodeRecord, ProjectRecord, StepExecutionRecord, utcnow
 
 
 def to_domain(record: ProjectRecord) -> ProjectData:
@@ -96,6 +96,41 @@ class ProjectRepository:
         if management_ip and cluster_ip and host_address(management_ip) == host_address(cluster_ip):
             conflicts["cluster_ip"] = "Management and cluster IP addresses must be different."
         return conflicts
+
+    def step_results(self, project_id: int) -> dict[str, list[StepExecutionRecord]]:
+        statement = (
+            select(StepExecutionRecord)
+            .where(StepExecutionRecord.project_id == project_id)
+            .options(selectinload(StepExecutionRecord.node))
+            .order_by(StepExecutionRecord.step, StepExecutionRecord.node_id)
+        )
+        records = self.session.scalars(statement).all()
+        grouped: dict[str, list[StepExecutionRecord]] = {}
+        for record in records:
+            grouped.setdefault(record.step, []).append(record)
+        return grouped
+
+    def save_step_results(self, project_id: int, step: str, results) -> None:
+        project = self.get_record(project_id)
+        if project is None:
+            return
+        nodes_by_hostname = {node.hostname: node for node in project.nodes}
+        for result in results:
+            node = nodes_by_hostname.get(result.hostname)
+            if node is None:
+                continue
+            statement = select(StepExecutionRecord).where(
+                StepExecutionRecord.project_id == project_id,
+                StepExecutionRecord.node_id == node.id,
+                StepExecutionRecord.step == step,
+            )
+            record = self.session.scalar(statement)
+            if record is None:
+                record = StepExecutionRecord(project_id=project_id, node_id=node.id, step=step, status="fail", output="")
+                self.session.add(record)
+            record.status = "pass" if result.ok else "fail"
+            record.output = result.output[-20000:]
+            record.executed_at = utcnow()
 
     def add_project(self, **values) -> ProjectRecord:
         record = ProjectRecord(**values)

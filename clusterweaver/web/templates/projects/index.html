@@ -1,20 +1,30 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% from "_icons.html" import icon %}
 {% block title %}Projects · ClusterWeaver{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <div><h1 class="h2 mb-1">Projects</h1><p class="text-secondary mb-0">Your cluster configuration history.</p></div>
+  <div><h1 class="h2 mb-1 d-inline-flex align-items-center gap-2">{{ icon('projects') }} Projects</h1><p class="text-secondary mb-0">Your cluster configuration history.</p></div>
   <a class="btn btn-primary" href="{{ url_for('projects.create_project') }}">New project</a>
 </div>
+<form class="card shadow-sm mb-3" method="get" action="{{ url_for('projects.index') }}" role="search">
+  <div class="card-body py-3"><div class="row g-2 align-items-end">
+    <div class="col-sm-4 col-lg-3"><label class="form-label small fw-semibold" for="project-search-column">Search column</label><select class="form-select" id="project-search-column" name="column">
+      {% for value, label in [('all', 'All columns'), ('number', 'Project number'), ('name', 'Project name'), ('customer', 'Customer'), ('target', 'Target'), ('created', 'Created'), ('updated', 'Last modified')] %}<option value="{{ value }}"{% if search_column == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></div>
+    <div class="col-sm-8 col-lg-7"><label class="form-label small fw-semibold" for="project-search">Search</label><input class="form-control" id="project-search" name="q" value="{{ search_term }}" placeholder="Enter a value to search"></div>
+    <div class="col-lg-2 d-grid"><input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="direction" value="{{ direction }}"><button class="btn btn-outline-primary d-inline-flex justify-content-center align-items-center gap-2" type="submit">{{ icon('search') }} Search</button></div>
+  </div></div>
+</form>
 {% if projects %}
 <div class="table-responsive card shadow-sm"><table class="table table-hover align-middle mb-0">
-  <thead><tr><th>Project</th><th>Customer</th><th>Target</th><th>Platform</th><th>Nodes</th><th>Created</th><th>Last modified</th><th></th></tr></thead>
+  {% macro sortable_header(key, label, class='') -%}<th class="{{ class }}"><a class="link-dark text-decoration-none text-nowrap" href="{{ sort_links[key] }}">{{ label }}{% if sort == key %} <span aria-label="Sorted {{ direction }}">{{ '↑' if direction == 'asc' else '↓' }}</span>{% endif %}</a></th>{%- endmacro %}
+  <thead><tr>{{ sortable_header('number', 'No.', 'text-center') }}{{ sortable_header('name', 'Project') }}{{ sortable_header('customer', 'Customer') }}{{ sortable_header('target', 'Target') }}<th>Platform</th><th>Hypervisor</th><th class="text-center">Remote Ready</th><th>Nodes</th>{{ sortable_header('created', 'Created') }}{{ sortable_header('updated', 'Last modified') }}<th></th></tr></thead>
   <tbody>{% for project in projects %}<tr class="clickable-row" data-href="{{ url_for('projects.detail', project_id=project.id) }}" tabindex="0" role="link" aria-label="Open project {{ project.name }}">
-    <td><strong>{{ project.name }}</strong><br><small class="text-secondary">{{ project.slug }}</small></td>
+    <td class="text-center fw-semibold text-secondary">{{ '%02d'|format(project_numbers[project.id]) }}</td><td><strong>{{ project.name }}</strong><br><small class="text-secondary">{{ project.slug }}</small></td>
     <td>{{ project.customer }}</td><td>RHEL {{ project.rhel_major }}{% if project.rhel_minor %}.{{ project.rhel_minor }}{% endif %}</td>
-    <td class="text-capitalize">{{ project.platform_type }}</td><td>{{ project.nodes|length }} / {{ project.node_count }}</td>
+    <td class="text-capitalize">{{ project.platform_type }}</td><td>{{ {'vmware': 'VMware', 'kvm': 'KVM', 'proxmox': 'Proxmox'}.get(project.hypervisor, project.hypervisor) if project.hypervisor else 'N/A' }}</td>{% set remote_label = 'Remote ready' if remote_ready[project.id] else ('SSH bootstrap discovery failed' if remote_discovery_failed[project.id] else 'Remote setup incomplete') %}{% set remote_title = 'Step 00 completed on every node' if remote_ready[project.id] else ('At least one node failed SSH bootstrap discovery' if remote_discovery_failed[project.id] else 'Complete all Step 00 operations on every node') %}<td class="text-center"><span class="remote-ready-indicator {{ 'text-success' if remote_ready[project.id] else ('text-danger' if remote_discovery_failed[project.id] else 'text-secondary') }}" role="img" aria-label="{{ remote_label }}" title="{{ remote_title }}">▶</span><span class="visually-hidden">{{ remote_label }}</span></td><td>{{ project.nodes|length }} / {{ project.node_count }}</td>
     <td class="text-nowrap">{{ project.created_at|local_datetime }}</td><td class="text-nowrap">{{ project.updated_at|local_datetime }}</td>
     <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('projects.detail', project_id=project.id) }}">Open</a></td>
   </tr>{% endfor %}</tbody>
 </table></div>
-{% else %}<div class="card shadow-sm"><div class="card-body py-5 text-center"><h2 class="h4">No projects yet</h2><p class="text-secondary">Create the first cluster definition.</p><a class="btn btn-primary" href="{{ url_for('projects.create_project') }}">New project</a></div></div>{% endif %}
+{% else %}<div class="card shadow-sm"><div class="card-body py-5 text-center"><h2 class="h4">{{ 'No matching projects' if search_term else 'No projects yet' }}</h2><p class="text-secondary">{{ 'Try a different column or search value.' if search_term else 'Create the first cluster definition.' }}</p>{% if search_term %}<a class="btn btn-outline-secondary" href="{{ url_for('projects.index') }}">Clear search</a>{% else %}<a class="btn btn-primary" href="{{ url_for('projects.create_project') }}">New project</a>{% endif %}</div></div>{% endif %}
 {% endblock %}

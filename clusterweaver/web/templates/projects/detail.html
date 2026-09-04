@@ -28,47 +28,65 @@
   </div></section>
 </div>
 
-<section class="card shadow-sm mb-5" aria-labelledby="ssh-bootstrap-title">
-  <div class="card-header"><h2 class="h5 mb-0" id="ssh-bootstrap-title">SSH bootstrap and discovery</h2></div>
-  <div class="card-body"><p class="text-secondary">Connects as <code>root</code> to each node's bootstrap IP. The password is used only for this request and is never stored.</p>
-    {% if project.nodes and project.nodes|selectattr('bootstrap_ip')|list|length == project.nodes|length %}
-    <div class="row g-4"><div class="col-lg-6"><form method="post" action="{{ url_for('projects.ssh_discovery', project_id=project.id) }}">{{ discovery_form.hidden_tag() }}{{ render_field(discovery_form.password) }}<div class="form-text mt-n2 mb-3">{% if ssh_password_configured %}A default password is configured securely on the server; leave this empty to use it.{% else %}No server-side password is configured; enter the nodes' initial root password.{% endif %}</div>{{ discovery_form.submit(class="btn btn-outline-primary") }}</form></div>
-    <div class="col-lg-6 border-start-lg"><form method="post" action="{{ url_for('projects.ssh_key_bootstrap', project_id=project.id) }}">{{ key_form.hidden_tag() }}{{ render_field(key_form.password) }}<div class="form-check mb-3">{{ key_form.confirm(class="form-check-input") }} {{ key_form.confirm.label(class="form-check-label") }}</div>{{ key_form.submit(class="btn btn-warning") }}</form></div></div>
-    {% else %}<div class="alert alert-warning mb-0">Configure an SSH bootstrap IP on every node before starting discovery.</div>{% endif %}
-  </div>
-</section>
-
-<section class="card shadow-sm mb-5 border-warning" aria-labelledby="network-apply-title">
-  <div class="card-header"><h2 class="h5 mb-0" id="network-apply-title">Apply RHEL 10.2 network configuration</h2></div>
-  {% if project.rhel_major == 10 and project.rhel_minor == '2' %}
-  <div class="card-body"><div class="alert alert-warning">This changes the active network of one node. ClusterWeaver schedules a 90-second rollback, reconnects to the desired management IP, and cancels rollback only after SSH succeeds. The replaced profile is then archived under <code>/root/clusterweaver-backups/network/</code> and removed from NetworkManager.</div>
-    <form method="post" action="{{ url_for('projects.network_apply', project_id=project.id) }}" id="network-apply-form">{{ network_form.hidden_tag() }}
-      <div class="row"><div class="col-lg-6">{{ render_field(network_form.node_id) }}</div><div class="col-lg-6">{{ render_field(network_form.password) }}</div></div>
-      <div class="form-check mb-3">{{ network_form.confirm(class="form-check-input") }} {{ network_form.confirm.label(class="form-check-label") }}</div>
-      {{ network_form.submit(class="btn btn-warning", disabled=(not project.nodes)) }}
-    </form>
-    <div class="alert alert-info mt-3 mb-0 d-none" id="network-apply-progress" role="status" aria-live="polite">
-      <div class="d-flex gap-3 align-items-start"><div class="spinner-border spinner-border-sm mt-1" aria-hidden="true"></div><div><strong id="network-apply-progress-title">Network configuration is running…</strong><div class="small mt-1" id="network-apply-progress-detail">Connecting to the selected node and running safety checks.</div><div class="small text-secondary mt-1">Elapsed time: <span id="network-apply-elapsed">0</span>s. Do not submit another node until the result page appears.</div></div></div>
-    </div>
-  </div>
-  {% else %}<div class="card-body"><div class="alert alert-secondary mb-0">Automated network application is currently available only for RHEL 10.2 projects.</div></div>{% endif %}
-</section>
-
 <section aria-labelledby="generated-workflow-title">
   <div class="mb-3"><h2 id="generated-workflow-title" class="h4 mb-1">Generated workflow</h2><p class="text-secondary mb-0">Review each operation, then expand, copy, or download only the script you need.</p></div>
   {% set steps = [
     ('01', 'Pre-checks', 'Collects local OS information and prints all expected project and node values. It is read-only and can be run on every node before configuration starts.', 'precheck-code', 'precheck-collapse', script, url_for('projects.download_precheck', project_id=project.id)),
     ('02', 'Network verification', 'For RHEL 9.8 and 10.2, verifies release, interfaces, NetworkManager state, MAC, MTU, CIDR addresses, management gateway/default route, and private never-default behavior. It makes no changes.', 'network-check-code', 'network-collapse', network_script, url_for('projects.download_network_check', project_id=project.id)),
-    ('03', 'Populate /etc/hosts', 'For RHEL 9.8, backs up /etc/hosts and installs idempotent private-IP to cluster-nodename mappings while preserving unrelated entries. Run as root on every node.', 'hosts-update-code', 'hosts-collapse', hosts_script, url_for('projects.download_hosts_update', project_id=project.id)),
-    ('04', 'Cluster network connectivity', 'For RHEL 9.8, validates nodename resolution, private peer reachability, route interface, path MTU, and optional duplicate-IP detection. It is read-only and returns a clear summary.', 'connectivity-code', 'connectivity-collapse', connectivity_script, url_for('projects.download_network_connectivity', project_id=project.id))
+    ('03', 'Populate /etc/hosts', 'For RHEL 9.8 and 10.2, backs up every execution under /root/clusterweaver-backups/hosts, verifies the release, and installs idempotent private-IP to cluster-nodename mappings while preserving unrelated entries.', 'hosts-update-code', 'hosts-collapse', hosts_script, url_for('projects.download_hosts_update', project_id=project.id)),
+    ('04', 'Cluster network connectivity', 'For RHEL 9.8 and 10.2, validates nodename resolution, private peer reachability, route interface, path MTU, and optional duplicate-IP detection. It is read-only and returns a clear summary.', 'connectivity-code', 'connectivity-collapse', connectivity_script, url_for('projects.download_network_connectivity', project_id=project.id))
   ] %}
-  <div class="d-flex flex-column gap-3">{% for number, title, description, code_id, collapse_id, content, download_url in steps %}
+  <div class="d-flex flex-column gap-3">
+    <article class="card shadow-sm workflow-step"><div class="row g-0">
+      <div class="col-lg-4 workflow-description p-4"><span class="badge text-bg-secondary mb-2">Step 00</span><h3 class="h5">Bootstrap and network</h3><p class="text-secondary mb-0">Discovers the nodes, creates peer SSH trust, and applies the RHEL 10.2 network configuration. Complete all three operations on every node to unlock step 01.</p></div>
+      <div class="col-lg-8 border-start-lg workflow-script-area"><div class="card-header"><span class="fw-semibold">00 · Bootstrap and network</span></div>
+        <div class="row g-0">
+        {% set bootstrap_operations = [('00a', 'SSH discovery', '#discovery-run-dialog'), ('00b', 'Peer SSH trust', '#key-bootstrap-run-dialog'), ('00c', 'Network configuration', '#network-apply-run-dialog')] %}
+        {% for operation, title, dialog in bootstrap_operations %}{% set operation_results = workflow_results.get(operation, []) %}
+          <div class="col-xl-4 p-3 bootstrap-operation-column">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><strong>{{ title }}</strong><button id="bootstrap-run-{{ operation }}" class="btn btn-sm {{ 'btn-danger' if bootstrap_failed[operation] else ('btn-success' if bootstrap_ready[operation] else 'btn-outline-secondary') }}" type="button" data-bs-toggle="modal" data-bs-target="{{ dialog }}"{% if not bootstrap_ready[operation] %} disabled aria-disabled="true" title="Complete the preceding operation successfully on every node first"{% elif bootstrap_failed[operation] %} title="Last execution failed; run this operation again"{% endif %}><span aria-hidden="true">{{ '■' if bootstrap_failed[operation] else '▶' }}</span> {{ 'Failed' if bootstrap_failed[operation] else 'Run' }}</button></div>
+            <div class="small text-secondary fw-semibold text-uppercase mb-2">Latest execution</div>
+            {% if operation_results %}<div class="d-flex flex-column gap-2">{% for result in operation_results %}<div class="workflow-result-row"><div class="d-flex align-items-center gap-2"><span class="workflow-status-icon {{ 'text-success' if result.status == 'pass' else 'text-danger' }}" aria-hidden="true">{{ '✓' if result.status == 'pass' else '✕' }}</span><strong class="small">{{ result.node.hostname }}</strong></div><div class="mt-1"><span class="badge {{ 'text-bg-success' if result.status == 'pass' else 'text-bg-danger' }}">{{ result.status|upper }}</span> <small class="text-secondary ms-1">{{ result.executed_at|local_datetime }}</small></div></div>{% endfor %}</div>{% else %}<p class="small text-secondary mb-0">No execution recorded.</p>{% endif %}
+          </div>
+        {% endfor %}
+        </div>
+      </div>
+    </div></article>
+  {% for number, title, description, code_id, collapse_id, content, download_url in steps %}
+    {% set step_results = workflow_results.get(number, []) %}
     <article class="card shadow-sm workflow-step"><div class="row g-0">
       <div class="col-lg-4 workflow-description p-4"><span class="badge text-bg-secondary mb-2">Step {{ number }}</span><h3 class="h5">{{ title }}</h3><p class="text-secondary mb-0">{{ description }}</p></div>
-      <div class="col-lg-8 border-start-lg"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><span class="fw-semibold">{{ number }} · {{ title }}</span><div class="btn-group btn-group-sm">{% if number == '01' %}<button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#precheck-run-dialog">Run on nodes</button>{% elif number == '02' %}<button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#network-check-run-dialog">Run on nodes</button>{% endif %}<button class="btn btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}" aria-expanded="false">Show script</button><button class="btn btn-outline-secondary expand-code" type="button" data-bs-toggle="modal" data-bs-target="#script-viewer" data-code-target="{{ code_id }}" data-script-title="{{ number }} · {{ title }}">Full screen</button><button class="btn btn-outline-primary copy-code" type="button" data-target="{{ code_id }}">Copy</button><a class="btn btn-outline-primary" href="{{ download_url }}">Download</a></div></div><div id="{{ collapse_id }}" class="collapse"><div class="card-body"><pre id="{{ code_id }}" class="code-panel compact-code"><code>{{ content }}</code></pre><div class="copy-status small text-success" aria-live="polite"></div></div></div></div>
+      <div class="col-lg-8 border-start-lg workflow-script-area"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><span class="fw-semibold">{{ number }} · {{ title }}</span><div class="btn-group btn-group-sm">{% if number in ['01', '02', '03', '04'] %}{% set run_dialog = {'01': '#precheck-run-dialog', '02': '#network-check-run-dialog', '03': '#hosts-update-run-dialog', '04': '#connectivity-run-dialog'}[number] %}<button id="workflow-run-{{ number }}" class="btn {{ 'btn-danger' if workflow_failed[number] else ('btn-success' if workflow_ready[number] else 'btn-outline-secondary') }}" type="button" data-bs-toggle="modal" data-bs-target="{{ run_dialog }}"{% if not workflow_ready[number] %} disabled aria-disabled="true" title="Complete the previous step successfully on every node first"{% elif workflow_failed[number] %} title="Last execution failed; run this step again"{% endif %}><span aria-hidden="true">{{ '■' if workflow_failed[number] else '▶' }}</span> {{ 'Failed — run again' if workflow_failed[number] else 'Run on nodes' }}</button>{% endif %}<button class="btn btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}" aria-expanded="false">Show script</button><button class="btn btn-outline-secondary expand-code" type="button" data-bs-toggle="modal" data-bs-target="#script-viewer" data-code-target="{{ code_id }}" data-script-title="{{ number }} · {{ title }}">Full screen</button><button class="btn btn-outline-primary copy-code" type="button" data-target="{{ code_id }}">Copy</button><a class="btn btn-outline-primary" href="{{ download_url }}">Download</a></div></div>
+        <div class="workflow-run-summary p-4" data-for-collapse="{{ collapse_id }}">{% if step_results %}<div class="small text-secondary fw-semibold text-uppercase mb-2">Latest execution</div><div class="d-flex flex-column gap-2">{% for result in step_results %}<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 workflow-result-row"><span class="d-inline-flex align-items-center gap-2"><span class="workflow-status-icon {{ 'text-success' if result.status == 'pass' else 'text-danger' }}" aria-hidden="true">{{ '✓' if result.status == 'pass' else '✕' }}</span><strong>{{ result.node.hostname }}</strong></span><span><span class="badge {{ 'text-bg-success' if result.status == 'pass' else 'text-bg-danger' }}">{{ result.status|upper }}</span> <small class="text-secondary ms-2">{{ result.executed_at|local_datetime }}</small></span></div>{% endfor %}</div>{% else %}<div class="h-100 d-flex align-items-center justify-content-center text-secondary"><span>No execution recorded for this step.</span></div>{% endif %}</div>
+        <div id="{{ collapse_id }}" class="collapse"><div class="card-body"><pre id="{{ code_id }}" class="code-panel compact-code"><code>{{ content }}</code></pre><div class="copy-status small text-success" aria-live="polite"></div></div></div>
+      </div>
     </div></article>
   {% endfor %}</div>
 </section>
+
+<div class="modal fade" id="discovery-run-dialog" tabindex="-1" aria-labelledby="discovery-run-title" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <form method="post" action="{{ url_for('projects.ssh_discovery', project_id=project.id) }}" class="remote-operation-form">{{ discovery_form.hidden_tag() }}
+    <div class="modal-header"><h2 class="modal-title fs-5" id="discovery-run-title">Run SSH discovery on all nodes</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><p>Connects as <code>root</code> to every bootstrap IP and performs read-only discovery.</p>{{ render_field(discovery_form.password) }}<div class="form-text mt-n2">{% if ssh_password_configured %}Leave empty to use the password configured on the server.{% else %}Enter the nodes' initial root password.{% endif %}</div><div class="alert alert-info mt-3 mb-0 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2"></span>Running SSH discovery…</div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{{ discovery_form.submit(class="btn btn-success") }}</div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="key-bootstrap-run-dialog" tabindex="-1" aria-labelledby="key-bootstrap-run-title" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <form method="post" action="{{ url_for('projects.ssh_key_bootstrap', project_id=project.id) }}" class="remote-operation-form">{{ key_form.hidden_tag() }}
+    <div class="modal-header"><h2 class="modal-title fs-5" id="key-bootstrap-run-title">Create peer SSH trust</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><p>Generates SSH keys where needed and installs them between the cluster nodes.</p>{{ render_field(key_form.password) }}<div class="form-check mt-3">{{ key_form.confirm(class="form-check-input") }} {{ key_form.confirm.label(class="form-check-label") }}</div><div class="alert alert-info mt-3 mb-0 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2"></span>Creating peer SSH trust…</div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{{ key_form.submit(class="btn btn-warning") }}</div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="network-apply-run-dialog" tabindex="-1" aria-labelledby="network-apply-run-title" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <form method="post" action="{{ url_for('projects.network_apply', project_id=project.id) }}" id="network-apply-form">{{ network_form.hidden_tag() }}
+    <div class="modal-header"><h2 class="modal-title fs-5" id="network-apply-run-title">Apply RHEL 10.2 network configuration</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">{% if project.rhel_major == 10 and project.rhel_minor == '2' %}<div class="alert alert-warning">This changes one node at a time. A 90-second rollback is scheduled and cancelled only after SSH reconnects. Replaced profiles are archived under <code>/root/clusterweaver-backups/network/</code>.</div><div class="row"><div class="col-lg-6">{{ render_field(network_form.node_id) }}</div><div class="col-lg-6">{{ render_field(network_form.password) }}</div></div><div class="form-check mb-3">{{ network_form.confirm(class="form-check-input") }} {{ network_form.confirm.label(class="form-check-label") }}</div><div class="alert alert-info mt-3 mb-0 d-none" id="network-apply-progress" role="status" aria-live="polite"><div class="d-flex gap-3 align-items-start"><div class="spinner-border spinner-border-sm mt-1"></div><div><strong id="network-apply-progress-title">Network configuration is running…</strong><div class="small mt-1" id="network-apply-progress-detail">Connecting to the selected node and running safety checks.</div><div class="small text-secondary mt-1">Elapsed time: <span id="network-apply-elapsed">0</span>s. Do not submit another node until the result page appears.</div></div></div></div>{% else %}<div class="alert alert-secondary mb-0">Automated network application is currently available only for RHEL 10.2 projects.</div>{% endif %}</div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{% if project.rhel_major == 10 and project.rhel_minor == '2' %}{{ network_form.submit(class="btn btn-warning", disabled=(not project.nodes)) }}{% endif %}</div>
+  </form>
+</div></div></div>
 
 <div class="modal fade" id="script-viewer" tabindex="-1" aria-labelledby="script-viewer-title" aria-hidden="true">
   <div class="modal-dialog modal-fullscreen"><div class="modal-content">
@@ -90,6 +108,22 @@
     <div class="modal-header"><h2 class="modal-title fs-5" id="network-check-run-title">Run network verification on all nodes</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
     <div class="modal-body"><p>The displayed step 02 script will run via SSH on {{ project.nodes|length }} node(s). It only reads network and NetworkManager state.</p>{{ render_field(network_check_form.password) }}<div class="form-text mt-n2">{% if ssh_password_configured %}Leave empty to use the password configured on the server.{% else %}A password is required because no server default is configured.{% endif %}</div><div class="alert alert-info mt-3 mb-0 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Running network verification; wait for the per-node results…</div></div>
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{{ network_check_form.submit(class="btn btn-success") }}</div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="hosts-update-run-dialog" tabindex="-1" aria-labelledby="hosts-update-run-title" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <form method="post" action="{{ url_for('projects.run_hosts_update', project_id=project.id) }}" class="remote-operation-form">{{ hosts_update_form.hidden_tag() }}
+    <div class="modal-header"><h2 class="modal-title fs-5" id="hosts-update-run-title">Update /etc/hosts on all nodes</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><div class="alert alert-warning">Step 03 changes <code>/etc/hosts</code> on every node. Every execution first creates a backup under <code>/root/clusterweaver-backups/hosts/</code>.</div>{{ render_field(hosts_update_form.password) }}<div class="form-text mt-n2">{% if ssh_password_configured %}Leave empty to use the password configured on the server.{% else %}A password is required because no server default is configured.{% endif %}</div><div class="form-check mt-3">{{ hosts_update_form.confirm(class="form-check-input") }} {{ hosts_update_form.confirm.label(class="form-check-label") }}</div><div class="alert alert-info mt-3 mb-0 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Updating /etc/hosts; wait for the per-node results…</div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{{ hosts_update_form.submit(class="btn btn-warning") }}</div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="connectivity-run-dialog" tabindex="-1" aria-labelledby="connectivity-run-title" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <form method="post" action="{{ url_for('projects.run_network_connectivity', project_id=project.id) }}" class="remote-operation-form">{{ connectivity_form.hidden_tag() }}
+    <div class="modal-header"><h2 class="modal-title fs-5" id="connectivity-run-title">Check cluster connectivity on all nodes</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><p>The displayed step 04 script runs through SSH on {{ project.nodes|length }} node(s). It is read-only and verifies the private path between peers.</p>{{ render_field(connectivity_form.password) }}<div class="form-text mt-n2">{% if ssh_password_configured %}Leave empty to use the password configured on the server.{% else %}A password is required because no server default is configured.{% endif %}</div><div class="alert alert-info mt-3 mb-0 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Checking private cluster connectivity; wait for the per-node results…</div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{{ connectivity_form.submit(class="btn btn-success") }}</div>
   </form>
 </div></div></div>
 {% endblock %}

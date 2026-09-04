@@ -6,6 +6,7 @@ from flask import Flask
 
 from config import Config
 from clusterweaver.persistence import db
+from clusterweaver.version import __version__
 
 
 def create_app(config_object=Config, **overrides) -> Flask:
@@ -17,6 +18,10 @@ def create_app(config_object=Config, **overrides) -> Flask:
     if database_url.startswith("sqlite:///"):
         Path(database_url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
     db.init_app(app)
+
+    @app.context_processor
+    def application_metadata() -> dict[str, str]:
+        return {"clusterweaver_version": __version__}
 
     @app.template_filter("local_datetime")
     def local_datetime(value: datetime | None) -> str:

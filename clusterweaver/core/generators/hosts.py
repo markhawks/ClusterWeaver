@@ -6,7 +6,8 @@ from clusterweaver.core.validators import host_address
 
 def generate_hosts_update(project: ProjectData) -> str:
     """Generate an idempotent /etc/hosts update for verified cluster nodenames."""
-    if project.rhel_major != 9 or project.rhel_minor != "8":
+    release = f"{project.rhel_major}.{project.rhel_minor}"
+    if release not in {"9.8", "10.2"}:
         return "\n".join([
             "#!/bin/bash", "", "set -o pipefail", "",
             shlex.join(["echo", f"/etc/hosts generation is not yet supported for RHEL {project.rhel_major}.{project.rhel_minor}."]),
@@ -27,14 +28,21 @@ def generate_hosts_update(project: ProjectData) -> str:
     marker = f"ClusterWeaver {project.uuid}"
     lines = [
         "#!/bin/bash", "", "set -o pipefail", "",
-        'HOSTS_FILE="/etc/hosts"', f"MARKER={shlex.quote(marker)}", "",
+        'HOSTS_FILE="/etc/hosts"', 'BACKUP_ROOT="/root/clusterweaver-backups/hosts"', f"MARKER={shlex.quote(marker)}", f"EXPECTED_RELEASE={shlex.quote(release)}", "",
         'if [[ ${EUID} -ne 0 ]]; then echo "FAIL: run this script as root." >&2; exit 1; fi',
         'if [[ ! -f "${HOSTS_FILE}" ]]; then echo "FAIL: ${HOSTS_FILE} does not exist." >&2; exit 1; fi',
-        'BACKUP="${HOSTS_FILE}.clusterweaver.$(date +%Y%m%d-%H%M%S).bak"',
+        'if ! install -d -m 700 "${BACKUP_ROOT}"; then echo "FAIL: cannot create backup root ${BACKUP_ROOT}." >&2; exit 1; fi',
+        'if ! BACKUP_DIR="$(mktemp -d "${BACKUP_ROOT}/$(date -u +%Y%m%dT%H%M%SZ)-$(hostname -s)-XXXXXX")"; then echo "FAIL: cannot create a unique backup directory." >&2; exit 1; fi',
+        'chmod 700 "${BACKUP_DIR}"',
+        'if ! cp -a "${HOSTS_FILE}" "${BACKUP_DIR}/hosts"; then echo "FAIL: cannot back up ${HOSTS_FILE}; no changes made." >&2; exit 1; fi',
+        'if ! printf "hostname=%s\\nsource_file=%s\\nbackup_time_utc=%s\\nproject_marker=%s\\n" "$(hostname -s)" "${HOSTS_FILE}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${MARKER}" > "${BACKUP_DIR}/manifest.txt"; then echo "FAIL: cannot write backup manifest; no changes made." >&2; exit 1; fi',
+        'chmod 600 "${BACKUP_DIR}/manifest.txt"',
+        'echo "Backup created: ${BACKUP_DIR}/hosts"', "",
+        'ACTUAL_RELEASE="$(. /etc/os-release 2>/dev/null; printf %s "${VERSION_ID:-unknown}")"',
+        'if [[ "${ACTUAL_RELEASE}" != "${EXPECTED_RELEASE}" ]]; then echo "FAIL: detected release ${ACTUAL_RELEASE}, expected RHEL ${EXPECTED_RELEASE}." >&2; exit 1; fi',
+        'echo "PASS: RHEL ${EXPECTED_RELEASE} detected."',
         'TEMP_FILE="$(mktemp /etc/hosts.clusterweaver.XXXXXX)"',
         'trap \'rm -f "${TEMP_FILE}"\' EXIT',
-        'cp -a "${HOSTS_FILE}" "${BACKUP}"',
-        'echo "Backup created: ${BACKUP}"', "",
         f"MANAGED_IPS={shlex.quote(ips)}", f"MANAGED_NAMES={shlex.quote(names)}", "",
         "awk -v marker=\"${MARKER}\" -v ips=\"${MANAGED_IPS}\" -v names=\"${MANAGED_NAMES}\" '",
         'BEGIN { split(ips, ip_list, ","); for (i in ip_list) managed_ip[ip_list[i]]=1; split(names, name_list, ","); for (i in name_list) managed_name[name_list[i]]=1; in_block=0 }',

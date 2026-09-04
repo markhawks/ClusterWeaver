@@ -7,7 +7,7 @@ from clusterweaver.core.validators import host_address
 def generate_network_connectivity(project: ProjectData) -> str:
     """Generate read-only private cluster network connectivity checks."""
     release = f"{project.rhel_major}.{project.rhel_minor}"
-    if release != "9.8":
+    if release not in {"9.8", "10.2"}:
         return f"#!/bin/bash\n\nset -o pipefail\n\necho {shlex.quote(f'Cluster network connectivity validation is not yet supported for RHEL {release}.')}\nexit 2\n"
     invalid = [node.hostname for node in project.nodes if not node.hostname or not node.nodename or not node.cluster_ip or not node.secondary_interface]
     if invalid or not project.nodes:
@@ -24,7 +24,10 @@ def generate_network_connectivity(project: ProjectData) -> str:
         'info() { echo "INFO: $*"; ((INFO_COUNT+=1)); }', "",
         'NODE_HOSTNAME="$(hostname -s 2>/dev/null || hostname)"',
         'CLUSTER_IFACE=""', 'LOCAL_CLUSTER_IP=""', 'LOCAL_NODENAME=""', 'PEERS=()',
-        'echo "=== ClusterWeaver: RHEL 9.8 cluster network connectivity ==="',
+        f'EXPECTED_RELEASE={shlex.quote(release)}',
+        'ACTUAL_RELEASE="$(. /etc/os-release 2>/dev/null; printf %s "${VERSION_ID:-unknown}")"',
+        'echo "=== ClusterWeaver: RHEL ${EXPECTED_RELEASE} cluster network connectivity ==="',
+        'if [[ "${ACTUAL_RELEASE}" == "${EXPECTED_RELEASE}" ]]; then pass "RHEL ${EXPECTED_RELEASE} detected"; else fail "expected RHEL ${EXPECTED_RELEASE}, detected ${ACTUAL_RELEASE}"; exit 2; fi',
         'echo "Detected node: ${NODE_HOSTNAME}"', "", 'case "${NODE_HOSTNAME}" in',
     ]
     for node in nodes:

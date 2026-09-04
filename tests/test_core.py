@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from uuid import uuid4
+from types import SimpleNamespace
 import yaml
 
 from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_precheck
@@ -7,6 +8,7 @@ from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
 from clusterweaver.core.services.git import GitService
+from clusterweaver.core.services.network_config import configure_node_network
 
 
 def sample_project():
@@ -17,6 +19,71 @@ def sample_project():
         nodes=[NodeData(hostname="node01", nodename="node01lanc", fqdn="node01.example.test", site="Firenze", management_ip="10.0.0.11/24", management_gateway="10.0.0.1", cluster_ip="192.168.1.11/24", primary_interface="ens160", secondary_interface="ens224")],
         created_at=now, updated_at=now,
     )
+
+
+def network_node():
+    return SimpleNamespace(
+        id=1, hostname="node01", bootstrap_ip="192.168.124.11", ssh_port=22,
+        management_ip="192.168.124.11/24", management_gateway="192.168.124.1", primary_interface="enp1s0",
+        cluster_ip="192.168.200.11/24", cluster_gateway="192.168.200.1", secondary_interface="enp7s0",
+    )
+
+
+def test_network_apply_is_noop_when_configuration_is_compliant(monkeypatch):
+    calls = []
+    monkeypatch.setattr("clusterweaver.core.services.network_config._connect", lambda node, password: (SimpleNamespace(close=lambda: None), "fingerprint"))
+
+    def fake_run(_client, command):
+        calls.append(command)
+        if "os-release" in command or "ip link show" in command:
+            return 0, ""
+        if "address show dev enp1s0" in command:
+            return 0, "2: enp1s0 inet 192.168.124.11/24 scope global enp1s0\n"
+        if "route show default" in command:
+            return 0, "default via 192.168.124.1 dev enp1s0 proto static\n"
+        if "address show dev enp7s0" in command:
+            return 0, "3: enp7s0 inet 192.168.200.11/24 scope global enp7s0\n"
+        if "GENERAL.CONNECTION" in command:
+            return 0, "clusterweaver-private-1\n"
+        if "ipv4.never-default" in command:
+            return 0, "yes\n"
+        raise AssertionError(f"Unexpected modifying command: {command}")
+
+    monkeypatch.setattr("clusterweaver.core.services.network_config._run", fake_run)
+    result = configure_node_network(network_node(), "secret")
+    assert result.ok
+    assert "already compliant" in result.output
+    assert not any("connection add" in command for command in calls)
+    assert not any("systemd-run" in command for command in calls)
+
+
+def test_private_network_change_is_blocked_when_pcs_reports_cluster(monkeypatch):
+    monkeypatch.setattr("clusterweaver.core.services.network_config._connect", lambda node, password: (SimpleNamespace(close=lambda: None), "fingerprint"))
+
+    def fake_run(_client, command):
+        if "os-release" in command or "ip link show" in command:
+            return 0, ""
+        if "address show dev enp1s0" in command:
+            return 0, "2: enp1s0 inet 192.168.124.11/24 scope global enp1s0\n"
+        if "route show default" in command:
+            return 0, "default via 192.168.124.1 dev enp1s0\n"
+        if "address show dev enp7s0" in command:
+            return 0, "3: enp7s0 inet 192.168.200.99/24 scope global enp7s0\n"
+        if "GENERAL.CONNECTION" in command:
+            return 0, "old-private\n"
+        if "ipv4.never-default" in command:
+            return 0, "yes\n"
+        if command == "rpm -q pcs":
+            return 0, "pcs-0.12\n"
+        if command == "pcs status":
+            return 0, "Cluster name: production\nCluster Summary:\n"
+        raise AssertionError(command)
+
+    monkeypatch.setattr("clusterweaver.core.services.network_config._run", fake_run)
+    result = configure_node_network(network_node(), "secret")
+    assert not result.ok
+    assert "Private network changes are blocked" in result.output
+    assert "Cluster name: production" in result.output
 
 
 def test_slug_is_filesystem_safe():
@@ -75,9 +142,21 @@ def test_hosts_update_uses_private_ips_nodenames_and_safety_guards():
     assert "192.168.1.11 node01lanc" in script
     assert "192.168.1.12 node02lanc" in script
     assert "cp -a" in script and "mktemp" in script
+    assert "/root/clusterweaver-backups/hosts" in script
+    assert "manifest.txt" in script
     assert 'MARKER=\'ClusterWeaver ' in script
     assert 'echo "# BEGIN ${MARKER}"' in script
     assert "EUID" in script
+
+
+def test_rhel_102_hosts_update_is_supported_and_release_guarded():
+    project = sample_project()
+    project.rhel_major = 10
+    project.rhel_minor = "2"
+    script = generate_hosts_update(project)
+    assert "EXPECTED_RELEASE=10.2" in script
+    assert "RHEL ${EXPECTED_RELEASE} detected" in script
+    assert "not yet supported" not in script
 
 
 def test_network_connectivity_checks_peer_route_ping_mtu_and_duplicates():
@@ -90,6 +169,18 @@ def test_network_connectivity_checks_peer_route_ping_mtu_and_duplicates():
     assert 'ping -c 1 -W 2 -M do' in script
     assert "arping -D" in script
     assert "PASS=${PASS_COUNT} FAIL=${FAIL_COUNT}" in script
+
+
+def test_rhel_102_network_connectivity_is_supported_and_release_guarded():
+    project = sample_project()
+    project.rhel_major = 10
+    project.rhel_minor = "2"
+    project.nodes.append(NodeData(hostname="node02", nodename="node02lanc", cluster_ip="192.168.1.12/24", secondary_interface="ens224"))
+    script = generate_network_connectivity(project)
+    assert "RHEL ${EXPECTED_RELEASE} cluster network connectivity" in script
+    assert "EXPECTED_RELEASE=10.2" in script
+    assert "RHEL ${EXPECTED_RELEASE} detected" in script
+    assert "not yet supported" not in script
 
 
 def test_git_commits_changes_only_once(tmp_path):

@@ -6,6 +6,23 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+### Added
+
+- Persistent per-node workflow execution status displayed in collapsed script panels.
+- RHEL 10.2 support and remote-release guard for generated step 03 `/etc/hosts` updates.
+- Sequential workflow gating and confirmed remote execution for step 03 on all nodes.
+- Unique `/etc/hosts` backup and manifest under `/root/clusterweaver-backups/hosts/` on every step-03 execution.
+- Unified step 00 for SSH discovery, peer trust, and per-node RHEL 10.2 network configuration, with three independent latest-execution panels and enforced step-01 gating.
+- Idempotent RHEL 10.2 network application with no-op compliance detection, independently applied management/private changes, and `pcs status` protection against private-network changes after cluster formation.
+- Hypervisor column in the main project list, with `N/A` for projects without one.
+- Stylized Projects heading icon and chronological project numbering, starting at `01` for the oldest project.
+- Sortable project number, name, customer, target, creation, and modification columns with column-aware project search.
+- Remote Ready status in the project list, enabled when every node has passed all three step-00 operations.
+- Red Stop-style workflow action state for failed step-00 operations and remote workflow steps, while preserving retry access.
+- Red Remote Ready arrow when at least one node has failed SSH bootstrap discovery.
+- Minimal Home and notebook navigation icons, right-aligned Changelog link, and visible current software version.
+- RHEL 10.2 support and gated remote execution with per-node results for step 04 cluster connectivity checks.
+
 ## [0.1.1] - 2026-09-04
 
 ### Added

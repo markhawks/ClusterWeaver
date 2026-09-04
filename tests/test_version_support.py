@@ -1,6 +1,11 @@
 import pytest
 
 from clusterweaver.core.validators import validate_rhel_release, validate_rhel_version
+from clusterweaver.version import __version__
+
+
+def test_application_version():
+    assert __version__ == "0.1.1"
 
 
 @pytest.mark.parametrize("major", [7, 9, 10])
