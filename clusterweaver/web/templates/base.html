@@ -4,13 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}ClusterWeaver{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/clusterweaver-mark.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/clusterweaver-mark.png') }}">
   <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
-      <a class="navbar-brand" href="{{ url_for('projects.index') }}" title="Return to project home">ClusterWeaver <small class="brand-home-hint">· Home</small></a>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('projects.index') }}" title="Return to project home"><img class="brand-logo" src="{{ url_for('static', filename='img/clusterweaver-mark.png') }}" alt=""><span>ClusterWeaver <small class="brand-home-hint">· Home</small></span></a>
       <div class="d-flex align-items-center gap-3">
         <a class="nav-link text-light" href="{{ url_for('projects.changelog') }}">Changelog</a>
         <span class="navbar-text d-none d-md-inline">Linux High Availability Cluster Builder &amp; Lifecycle Manager</span>

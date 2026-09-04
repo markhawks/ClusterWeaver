@@ -1,5 +1,9 @@
 # ClusterWeaver
 
+<p align="center">
+  <img src="docs/assets/ClusterWeaver-Logo.png" alt="ClusterWeaver — Linux HA Cluster Builder" width="560">
+</p>
+
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
