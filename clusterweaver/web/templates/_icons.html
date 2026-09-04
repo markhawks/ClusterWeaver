@@ -1,0 +1,9 @@
+{% macro icon(name, title='') -%}
+<svg class="cw-icon cw-icon-{{ name }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"{% if title %} data-icon-title="{{ title }}"{% endif %}>
+  {% if name == 'settings' %}<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/>
+  {% elif name == 'cluster' %}<rect x="2.5" y="4" width="7" height="6" rx="1"/><rect x="14.5" y="4" width="7" height="6" rx="1"/><path d="M6 10v3h12v-3M12 13v3"/><circle cx="12" cy="19" r="2"/>
+  {% elif name == 'vm' %}<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M9.5 8.5l-2 2 2 2M14.5 8.5l2 2-2 2"/>
+  {% elif name == 'server' %}<rect x="4" y="3" width="16" height="8" rx="2"/><rect x="4" y="13" width="16" height="8" rx="2"/><path d="M8 7h.01M8 17h.01M12 7h5M12 17h5"/>
+  {% endif %}
+</svg>
+{%- endmacro %}

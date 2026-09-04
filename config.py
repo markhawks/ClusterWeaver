@@ -16,6 +16,7 @@ class Config:
     HOST = os.environ.get("CLUSTERWEAVER_HOST", "127.0.0.1")
     PORT = int(os.environ.get("CLUSTERWEAVER_PORT", "5000"))
     DEBUG = os.environ.get("CLUSTERWEAVER_DEBUG", "0").lower() in {"1", "true", "yes"}
+    SSH_BOOTSTRAP_PASSWORD = os.environ.get("CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD", "")
     WTF_CSRF_ENABLED = True
 
 

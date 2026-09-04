@@ -1,6 +1,7 @@
 import shlex
 
 from clusterweaver.core.models import ProjectData
+from clusterweaver.core.validators import host_address
 
 
 def generate_hosts_update(project: ProjectData) -> str:
@@ -21,7 +22,7 @@ def generate_hosts_update(project: ProjectData) -> str:
         ])
 
     nodes = sorted(project.nodes, key=lambda item: item.nodename.lower())
-    ips = ",".join(node.cluster_ip for node in nodes)
+    ips = ",".join(host_address(node.cluster_ip) for node in nodes)
     names = ",".join(node.nodename for node in nodes)
     marker = f"ClusterWeaver {project.uuid}"
     lines = [
@@ -45,7 +46,7 @@ def generate_hosts_update(project: ProjectData) -> str:
         '[[ -s "${TEMP_FILE}" ]] && [[ "$(tail -c 1 "${TEMP_FILE}" | wc -l)" -eq 0 ]] && echo >> "${TEMP_FILE}"',
         'echo "# BEGIN ${MARKER}" >> "${TEMP_FILE}"',
     ]
-    lines.extend(shlex.join(["echo", f"{node.cluster_ip} {node.nodename}"]) + ' >> "${TEMP_FILE}"' for node in nodes)
+    lines.extend(shlex.join(["echo", f"{host_address(node.cluster_ip)} {node.nodename}"]) + ' >> "${TEMP_FILE}"' for node in nodes)
     lines.extend([
         'echo "# END ${MARKER}" >> "${TEMP_FILE}"',
         'chmod --reference="${HOSTS_FILE}" "${TEMP_FILE}"',
@@ -56,4 +57,3 @@ def generate_hosts_update(project: ProjectData) -> str:
         'echo "=== /etc/hosts update complete ==="', "",
     ])
     return "\n".join(lines)
-

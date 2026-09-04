@@ -8,7 +8,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.0**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.1**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -115,7 +115,7 @@ Each project is written to:
 data/projects/<project-slug>/project.yaml
 ```
 
-`data/projects/` is initialized as a separate local Git repository. Meaningful YAML changes create commits; SQLite databases, logs, and secret YAML files are ignored. Generated commands are displayed for review and are never executed by ClusterWeaver.
+`data/projects/` is initialized as a separate local Git repository. Meaningful YAML changes create commits; SQLite databases, logs, and secret YAML files are ignored. Generated workflow scripts are displayed for review. SSH discovery and explicitly confirmed SSH key bootstrap actions are executed remotely from the project page; passwords are used only in memory and are never written to project data or logs.
 
 Configuration can be overridden with:
 
@@ -125,6 +125,7 @@ Configuration can be overridden with:
 - `CLUSTERWEAVER_HOST` (defaults to `127.0.0.1`)
 - `CLUSTERWEAVER_PORT` (defaults to `5000`)
 - `CLUSTERWEAVER_DEBUG` (defaults to disabled)
+- `CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD` (optional initial root password stored only in the protected service environment file)
 
 ## Directory layout
 
@@ -140,4 +141,4 @@ migrations/        # Alembic schema history
 tests/             # unit and web integration tests
 ```
 
-The MVP intentionally excludes Pacemaker configuration, storage, STONITH, Ansible, SSH execution, and RHEL 8 support.
+The MVP intentionally excludes Pacemaker configuration, storage, STONITH, Ansible, and RHEL 8 support. SSH execution is currently limited to read-only discovery and explicitly confirmed peer-key bootstrap.

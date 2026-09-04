@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% from "_form_helpers.html" import render_field %}{% from "_icons.html" import icon %}
 {% block title %}{{ project.name }} · ClusterWeaver{% endblock %}
 {% block navigation %}
 <nav class="d-flex justify-content-between align-items-center mb-3" aria-label="Breadcrumb">
@@ -8,38 +8,88 @@
 {% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
-  <div><p class="text-secondary mb-1">{{ project.customer }}</p><h1 class="h2 mb-1">{{ project.name }}</h1><span class="badge text-bg-secondary">RHEL {{ project.rhel_major }}{% if project.rhel_minor %}.{{ project.rhel_minor }}{% endif %}</span> <span class="badge text-bg-light text-capitalize">{{ project.platform_type }}</span></div>
+  <div><p class="text-secondary mb-1">{{ project.customer }}</p><h1 class="h2 mb-1">{{ project.name }}</h1><span class="badge text-bg-secondary">RHEL {{ project.rhel_major }}{% if project.rhel_minor %}.{{ project.rhel_minor }}{% endif %}</span> <span class="badge text-bg-light text-capitalize">{{ project.platform_type }}</span>{% if project.hypervisor %} <span class="badge text-bg-light">{{ {'vmware': 'VMware', 'kvm': 'KVM', 'proxmox': 'Proxmox'}.get(project.hypervisor, project.hypervisor) }}</span>{% endif %}</div>
   <a class="btn btn-outline-primary" href="{{ url_for('projects.edit_project', project_id=project.id) }}">Edit project</a>
 </div>
 <div class="row g-4 mb-5">
   <section class="col-lg-5"><div class="card shadow-sm h-100">
-    <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">Configuration</span><button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#project-configuration" aria-expanded="true">Hide</button></div>
+    <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold d-inline-flex align-items-center gap-2">{{ icon('settings') }} Configuration</span><button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#project-configuration" aria-expanded="true">Hide</button></div>
     <div id="project-configuration" class="collapse show"><div class="card-body"><div class="row">
       <dl class="col-sm-6 mb-0"><dt>Created</dt><dd>{{ project.created_at|local_datetime }}</dd><dt>Last modified</dt><dd>{{ project.updated_at|local_datetime }}</dd></dl>
       <dl class="col-sm-6 mb-0"><dt>Expected nodes</dt><dd>{{ project.node_count }}</dd><dt>Project UUID</dt><dd class="small text-break">{{ project.uuid }}</dd></dl>
     </div>{% if project.description %}<hr><p class="small mb-0">{{ project.description }}</p>{% endif %}</div></div>
   </div></section>
   <section class="col-lg-7"><div class="card shadow-sm h-100">
-    <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">Cluster overview</span><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#cluster-overview" aria-expanded="true">Hide</button><a class="btn btn-sm btn-primary" href="{{ url_for('projects.create_node', project_id=project.id) }}">Add node</a></div></div>
+    <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold d-inline-flex align-items-center gap-2">{{ icon('cluster') }} Cluster overview</span><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#cluster-overview" aria-expanded="true">Hide</button><a class="btn btn-sm btn-primary" href="{{ url_for('projects.create_node', project_id=project.id) }}">Add node</a></div></div>
     <div id="cluster-overview" class="collapse show"><div class="card-body p-0">
-      {% if project.nodes %}<div class="row g-0">{% for node in project.nodes %}<div class="col-xl-6 border-bottom"><div class="p-3"><div class="d-flex justify-content-between"><strong>{{ node.hostname }}</strong><div class="btn-group btn-group-sm"><a class="btn btn-outline-secondary" href="{{ url_for('projects.clone_node', project_id=project.id, node_id=node.id) }}">Clone</a><a class="btn btn-outline-primary" href="{{ url_for('projects.edit_node', project_id=project.id, node_id=node.id) }}">Edit</a></div></div><small class="text-secondary">nodename {{ node.nodename or '—' }} · {{ node.site or 'No site' }}<br>mgmt {{ node.management_ip or '—' }} · private {{ node.cluster_ip or '—' }}<br>interfaces {{ node.primary_interface or '—' }} / {{ node.secondary_interface or '—' }}</small></div></div>{% endfor %}</div>
+      {% if project.nodes %}<div class="row g-0">{% for node in project.nodes %}<div class="col-xl-6 border-bottom"><div class="p-3"><div class="d-flex justify-content-between"><strong class="d-inline-flex align-items-center gap-2">{% if project.platform_type == 'virtual' %}{{ icon('vm') }}{% else %}{{ icon('server') }}{% endif %}<span>{{ node.hostname }}{% if not node.cluster_ip %} <span class="text-warning node-network-warning" role="img" aria-label="Attention: cluster/private IP is not configured" title="Cluster/private IP is not configured">⚠</span>{% endif %}</span></strong><div class="btn-group btn-group-sm"><a class="btn btn-outline-secondary" href="{{ url_for('projects.clone_node', project_id=project.id, node_id=node.id) }}">Clone</a><a class="btn btn-outline-primary" href="{{ url_for('projects.edit_node', project_id=project.id, node_id=node.id) }}">Edit</a></div></div><small class="text-secondary">nodename {{ node.nodename or '—' }} · {{ node.site or 'No site' }}<br>mgmt {{ node.management_ip or '—' }} via {{ node.management_gateway or '—' }}<br>private {% if node.cluster_ip %}{{ node.cluster_ip }} via {{ node.cluster_gateway or '—' }}{% else %}<span class="text-warning fw-semibold">not configured ⚠</span>{% endif %}<br>interfaces {{ node.primary_interface or '—' }} / {{ node.secondary_interface or '—' }}<br>SSH bootstrap {{ node.bootstrap_ip or '—' }}:{{ node.ssh_port or 22 }}</small></div></div>{% endfor %}</div>
       {% else %}<p class="text-secondary text-center py-4">No nodes configured.</p>{% endif %}
     </div></div>
   </div></section>
 </div>
 
+<section class="card shadow-sm mb-5" aria-labelledby="ssh-bootstrap-title">
+  <div class="card-header"><h2 class="h5 mb-0" id="ssh-bootstrap-title">SSH bootstrap and discovery</h2></div>
+  <div class="card-body"><p class="text-secondary">Connects as <code>root</code> to each node's bootstrap IP. The password is used only for this request and is never stored.</p>
+    {% if project.nodes and project.nodes|selectattr('bootstrap_ip')|list|length == project.nodes|length %}
+    <div class="row g-4"><div class="col-lg-6"><form method="post" action="{{ url_for('projects.ssh_discovery', project_id=project.id) }}">{{ discovery_form.hidden_tag() }}{{ render_field(discovery_form.password) }}<div class="form-text mt-n2 mb-3">{% if ssh_password_configured %}A default password is configured securely on the server; leave this empty to use it.{% else %}No server-side password is configured; enter the nodes' initial root password.{% endif %}</div>{{ discovery_form.submit(class="btn btn-outline-primary") }}</form></div>
+    <div class="col-lg-6 border-start-lg"><form method="post" action="{{ url_for('projects.ssh_key_bootstrap', project_id=project.id) }}">{{ key_form.hidden_tag() }}{{ render_field(key_form.password) }}<div class="form-check mb-3">{{ key_form.confirm(class="form-check-input") }} {{ key_form.confirm.label(class="form-check-label") }}</div>{{ key_form.submit(class="btn btn-warning") }}</form></div></div>
+    {% else %}<div class="alert alert-warning mb-0">Configure an SSH bootstrap IP on every node before starting discovery.</div>{% endif %}
+  </div>
+</section>
+
+<section class="card shadow-sm mb-5 border-warning" aria-labelledby="network-apply-title">
+  <div class="card-header"><h2 class="h5 mb-0" id="network-apply-title">Apply RHEL 10.2 network configuration</h2></div>
+  {% if project.rhel_major == 10 and project.rhel_minor == '2' %}
+  <div class="card-body"><div class="alert alert-warning">This changes the active network of one node. ClusterWeaver schedules a 90-second rollback, reconnects to the desired management IP, and cancels rollback only after SSH succeeds. The replaced profile is then archived under <code>/root/clusterweaver-backups/network/</code> and removed from NetworkManager.</div>
+    <form method="post" action="{{ url_for('projects.network_apply', project_id=project.id) }}" id="network-apply-form">{{ network_form.hidden_tag() }}
+      <div class="row"><div class="col-lg-6">{{ render_field(network_form.node_id) }}</div><div class="col-lg-6">{{ render_field(network_form.password) }}</div></div>
+      <div class="form-check mb-3">{{ network_form.confirm(class="form-check-input") }} {{ network_form.confirm.label(class="form-check-label") }}</div>
+      {{ network_form.submit(class="btn btn-warning", disabled=(not project.nodes)) }}
+    </form>
+    <div class="alert alert-info mt-3 mb-0 d-none" id="network-apply-progress" role="status" aria-live="polite">
+      <div class="d-flex gap-3 align-items-start"><div class="spinner-border spinner-border-sm mt-1" aria-hidden="true"></div><div><strong id="network-apply-progress-title">Network configuration is running…</strong><div class="small mt-1" id="network-apply-progress-detail">Connecting to the selected node and running safety checks.</div><div class="small text-secondary mt-1">Elapsed time: <span id="network-apply-elapsed">0</span>s. Do not submit another node until the result page appears.</div></div></div>
+    </div>
+  </div>
+  {% else %}<div class="card-body"><div class="alert alert-secondary mb-0">Automated network application is currently available only for RHEL 10.2 projects.</div></div>{% endif %}
+</section>
+
 <section aria-labelledby="generated-workflow-title">
   <div class="mb-3"><h2 id="generated-workflow-title" class="h4 mb-1">Generated workflow</h2><p class="text-secondary mb-0">Review each operation, then expand, copy, or download only the script you need.</p></div>
   {% set steps = [
     ('01', 'Pre-checks', 'Collects local OS information and prints all expected project and node values. It is read-only and can be run on every node before configuration starts.', 'precheck-code', 'precheck-collapse', script, url_for('projects.download_precheck', project_id=project.id)),
-    ('02', 'Network verification', 'For RHEL 9.8, detects the current node and verifies interface presence, NetworkManager state, MAC, MTU, management IP, and private IP readiness. It makes no changes.', 'network-check-code', 'network-collapse', network_script, url_for('projects.download_network_check', project_id=project.id)),
-    ('03', 'Populate /etc/hosts', 'For RHEL 9.8, backs up /etc/hosts and installs idempotent private-IP to cluster-nodename mappings while preserving unrelated entries. Run as root on every node.', 'hosts-update-code', 'hosts-collapse', hosts_script, url_for('projects.download_hosts_update', project_id=project.id))
+    ('02', 'Network verification', 'For RHEL 9.8 and 10.2, verifies release, interfaces, NetworkManager state, MAC, MTU, CIDR addresses, management gateway/default route, and private never-default behavior. It makes no changes.', 'network-check-code', 'network-collapse', network_script, url_for('projects.download_network_check', project_id=project.id)),
+    ('03', 'Populate /etc/hosts', 'For RHEL 9.8, backs up /etc/hosts and installs idempotent private-IP to cluster-nodename mappings while preserving unrelated entries. Run as root on every node.', 'hosts-update-code', 'hosts-collapse', hosts_script, url_for('projects.download_hosts_update', project_id=project.id)),
+    ('04', 'Cluster network connectivity', 'For RHEL 9.8, validates nodename resolution, private peer reachability, route interface, path MTU, and optional duplicate-IP detection. It is read-only and returns a clear summary.', 'connectivity-code', 'connectivity-collapse', connectivity_script, url_for('projects.download_network_connectivity', project_id=project.id))
   ] %}
   <div class="d-flex flex-column gap-3">{% for number, title, description, code_id, collapse_id, content, download_url in steps %}
     <article class="card shadow-sm workflow-step"><div class="row g-0">
       <div class="col-lg-4 workflow-description p-4"><span class="badge text-bg-secondary mb-2">Step {{ number }}</span><h3 class="h5">{{ title }}</h3><p class="text-secondary mb-0">{{ description }}</p></div>
-      <div class="col-lg-8 border-start-lg"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><span class="fw-semibold">{{ number }} · {{ title }}</span><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}" aria-expanded="false">Show script</button><button class="btn btn-outline-primary copy-code" data-target="{{ code_id }}">Copy</button><a class="btn btn-outline-primary" href="{{ download_url }}">Download</a></div></div><div id="{{ collapse_id }}" class="collapse"><div class="card-body"><pre id="{{ code_id }}" class="code-panel compact-code"><code>{{ content }}</code></pre><div class="copy-status small text-success" aria-live="polite"></div></div></div></div>
+      <div class="col-lg-8 border-start-lg"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><span class="fw-semibold">{{ number }} · {{ title }}</span><div class="btn-group btn-group-sm">{% if number == '01' %}<button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#precheck-run-dialog">Run on nodes</button>{% elif number == '02' %}<button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#network-check-run-dialog">Run on nodes</button>{% endif %}<button class="btn btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}" aria-expanded="false">Show script</button><button class="btn btn-outline-secondary expand-code" type="button" data-bs-toggle="modal" data-bs-target="#script-viewer" data-code-target="{{ code_id }}" data-script-title="{{ number }} · {{ title }}">Full screen</button><button class="btn btn-outline-primary copy-code" type="button" data-target="{{ code_id }}">Copy</button><a class="btn btn-outline-primary" href="{{ download_url }}">Download</a></div></div><div id="{{ collapse_id }}" class="collapse"><div class="card-body"><pre id="{{ code_id }}" class="code-panel compact-code"><code>{{ content }}</code></pre><div class="copy-status small text-success" aria-live="polite"></div></div></div></div>
     </div></article>
   {% endfor %}</div>
 </section>
+
+<div class="modal fade" id="script-viewer" tabindex="-1" aria-labelledby="script-viewer-title" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title fs-5" id="script-viewer-title">Generated script</h2><div class="d-flex align-items-center gap-2"><button class="btn btn-sm btn-outline-primary copy-code" type="button" data-target="script-viewer-code">Copy</button><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div></div>
+    <div class="modal-body d-flex flex-column"><pre id="script-viewer-code" class="code-panel fullscreen-code flex-grow-1"><code></code></pre><div class="copy-status small text-success" aria-live="polite"></div></div>
+  </div></div>
+</div>
+
+<div class="modal fade" id="precheck-run-dialog" tabindex="-1" aria-labelledby="precheck-run-title" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <form method="post" action="{{ url_for('projects.run_prechecks', project_id=project.id) }}" class="remote-operation-form">{{ precheck_form.hidden_tag() }}
+    <div class="modal-header"><h2 class="modal-title fs-5" id="precheck-run-title">Run pre-checks on all nodes</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><p>The displayed step 01 script will run via SSH on {{ project.nodes|length }} node(s). It is read-only and is not saved remotely.</p>{{ render_field(precheck_form.password) }}<div class="form-text mt-n2">{% if ssh_password_configured %}Leave empty to use the password configured on the server.{% else %}A password is required because no server default is configured.{% endif %}</div><div class="alert alert-info mt-3 mb-0 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Running pre-checks; wait for the per-node results…</div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{{ precheck_form.submit(class="btn btn-success") }}</div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="network-check-run-dialog" tabindex="-1" aria-labelledby="network-check-run-title" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <form method="post" action="{{ url_for('projects.run_network_checks', project_id=project.id) }}" class="remote-operation-form">{{ network_check_form.hidden_tag() }}
+    <div class="modal-header"><h2 class="modal-title fs-5" id="network-check-run-title">Run network verification on all nodes</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><p>The displayed step 02 script will run via SSH on {{ project.nodes|length }} node(s). It only reads network and NetworkManager state.</p>{{ render_field(network_check_form.password) }}<div class="form-text mt-n2">{% if ssh_password_configured %}Leave empty to use the password configured on the server.{% else %}A password is required because no server default is configured.{% endif %}</div><div class="alert alert-info mt-3 mb-0 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Running network verification; wait for the per-node results…</div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>{{ network_check_form.submit(class="btn btn-success") }}</div>
+  </form>
+</div></div></div>
 {% endblock %}

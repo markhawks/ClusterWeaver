@@ -6,6 +6,7 @@ from sqlalchemy import select, union_all
 from sqlalchemy.orm import selectinload
 
 from clusterweaver.core.models import NodeData, ProjectData
+from clusterweaver.core.validators import host_address
 from clusterweaver.persistence.models import NodeRecord, ProjectRecord
 
 
@@ -20,6 +21,7 @@ def to_domain(record: ProjectRecord) -> ProjectData:
         rhel_major=record.rhel_major,
         rhel_minor=record.rhel_minor,
         platform_type=record.platform_type,
+        hypervisor=record.hypervisor,
         node_count=record.node_count,
         created_at=record.created_at,
         updated_at=record.updated_at,
@@ -31,9 +33,13 @@ def to_domain(record: ProjectRecord) -> ProjectData:
                 fqdn=node.fqdn,
                 site=node.site,
                 management_ip=node.management_ip,
+                management_gateway=node.management_gateway,
                 cluster_ip=node.cluster_ip,
+                cluster_gateway=node.cluster_gateway,
                 primary_interface=node.primary_interface,
                 secondary_interface=node.secondary_interface,
+                bootstrap_ip=node.bootstrap_ip,
+                ssh_port=node.ssh_port,
             )
             for node in record.nodes
         ],
@@ -68,7 +74,7 @@ class ProjectRepository:
             select(NodeRecord.secondary_interface.label("name")),
         )
         saved = {value.strip() for value in self.session.scalars(statement) if value and value.strip()}
-        return sorted({"ens160", "ens224", *saved})
+        return sorted({"enp1s0", "enp7s0", "ens160", "ens224", *saved})
 
     def node_conflicts(self, project_id: int, values: dict[str, str], excluding_id: int | None = None) -> dict[str, str]:
         statement = select(NodeRecord).where(NodeRecord.project_id == project_id)
@@ -80,13 +86,14 @@ class ProjectRepository:
             candidate = values.get(field, "").strip().lower()
             if candidate and any(getattr(node, field).strip().lower() == candidate for node in nodes):
                 conflicts[field] = f"This {field} is already used by another node in the project."
-        used_ips = {address for node in nodes for address in (node.management_ip.strip(), node.cluster_ip.strip()) if address}
+        used_ips = {host_address(address.strip()) for node in nodes for address in (node.management_ip, node.cluster_ip) if address.strip()}
         for field in ("management_ip", "cluster_ip"):
             candidate = values.get(field, "").strip()
-            if candidate and candidate in used_ips:
+            if candidate and host_address(candidate) in used_ips:
                 conflicts[field] = "This IP address is already used by another node in the project."
         management_ip = values.get("management_ip", "").strip()
-        if management_ip and management_ip == values.get("cluster_ip", "").strip():
+        cluster_ip = values.get("cluster_ip", "").strip()
+        if management_ip and cluster_ip and host_address(management_ip) == host_address(cluster_ip):
             conflicts["cluster_ip"] = "Management and cluster IP addresses must be different."
         return conflicts
 

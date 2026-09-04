@@ -9,6 +9,7 @@
 {% block content %}
 <div class="row justify-content-center"><div class="col-xl-7"><div class="card shadow-sm"><div class="card-body p-4">
   <p class="text-secondary mb-1">{{ project.name }}</p><h1 class="h3 mb-4">{{ title }}</h1>
+  {% if title == 'Add node' and project.rhel_major == 10 and project.platform_type == 'virtual' and project.hypervisor == 'kvm' %}<div class="alert alert-info">Suggested RHEL 10/KVM defaults: management network <code>192.168.124.0/24</code> via <code>192.168.124.1</code> on <code>enp1s0</code>; directly connected cluster/private network <code>192.168.200.0/24</code> with no gateway on <code>enp7s0</code>. Review them against the VM configuration before saving.</div>{% endif %}
   {% if title.startswith('Clone node') %}<div class="alert alert-info">Update hostname, cluster node name, FQDN, and IP addresses before saving. Duplicate values are not allowed in the same project.</div>{% endif %}
   <form method="post" novalidate>{{ form.hidden_tag() }}
     <div class="row"><div class="col-md-6">{{ render_field(form.fqdn) }}</div><div class="col-md-6">{{ render_field(form.hostname) }}</div></div>
@@ -28,10 +29,13 @@
       {% for error in form.site.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
       <div class="form-text">Physical or logical location of this node; use the same value for nodes in the same site.</div>
     </div>
-    <div class="row"><div class="col-md-6">{{ render_field(form.management_ip) }}</div><div class="col-md-6">{{ render_field(form.cluster_ip) }}</div></div>
+    <div class="row"><div class="col-md-6">{{ render_field(form.management_ip) }}<div class="form-text mt-n2 mb-3">Include the subnet prefix, for example <code>192.168.27.24/24</code>.</div></div><div class="col-md-6">{{ render_field(form.management_gateway) }}<div class="form-text mt-n2 mb-3">Required for the primary/management interface. <span class="gateway-suggestion" data-address-source="management_ip" data-default-example="Example: 192.168.27.1.">Example: <code>192.168.27.1</code>.</span></div></div></div>
+    <div class="row"><div class="col-md-6">{{ render_field(form.cluster_ip) }}<div class="form-text mt-n2 mb-3">Optional; when used include the prefix, for example <code>192.168.28.24/24</code>.</div></div><div class="col-md-6">{{ render_field(form.cluster_gateway) }}<div class="form-text mt-n2 mb-3">Optional inventory information only. ClusterWeaver does not apply it: the private interface is always configured without a default route.</div></div></div>
     <div class="row"><div class="col-md-6">{{ render_field(form.primary_interface) }}</div><div class="col-md-6">{{ render_field(form.secondary_interface) }}</div></div>
     <datalist id="network-interface-options">{% for name in interface_names %}<option value="{{ name }}">{% endfor %}</datalist>
     <div class="form-text mb-3">Select a known interface or type a new name. Custom names are saved and suggested for future nodes.</div>
+    <hr><h2 class="h5">SSH bootstrap</h2><p class="text-secondary small">Temporary connection details used for remote discovery. Passwords are requested only when an operation starts and are never stored.</p>
+    <div class="row"><div class="col-md-8">{{ render_field(form.bootstrap_ip) }}</div><div class="col-md-4">{{ render_field(form.ssh_port) }}</div></div>
     <div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save node</button><a class="btn btn-outline-secondary" href="{{ url_for('projects.detail', project_id=project.id) }}">Cancel</a></div>
   </form>
 </div></div></div></div>

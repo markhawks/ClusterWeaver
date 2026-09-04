@@ -6,6 +6,8 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-04
+
 ### Added
 
 - AGPL-3.0 copyleft license and community contribution/security documentation.
@@ -16,6 +18,21 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 - User-provided official spherical logo replaces the generated header and favicon treatment.
 - Read-only RHEL 9.8 network-interface verification as generated step 02.
 - Idempotent, backed-up RHEL 9.8 `/etc/hosts` population as generated step 03.
+- Read-only peer resolution, routing, reachability, MTU, and duplicate-IP validation as generated step 04.
+- Full-screen in-page viewer for every generated workflow script.
+- CIDR-based node addressing with required management gateway and optional cluster/private gateway.
+- Guided two-node PostgreSQL, DB2, and Apache HA examples in the new-project form.
+- RHEL 10.2 and virtual-platform defaults with persisted VMware, KVM, and Proxmox hypervisor selection.
+- Sequential management and cluster/private addressing, gateways, and `enp1s0`/`enp7s0` suggestions for new RHEL 10 KVM nodes.
+- Password-based root SSH bootstrap, read-only remote discovery, and confirmed peer Ed25519 key authorization.
+- Per-node RHEL 10.2 NetworkManager application with timed rollback and SSH reconnection verification.
+- Live network-application progress feedback with duplicate-submit prevention.
+- Graphical per-node execution and PASS/FAIL reporting for read-only generated pre-checks.
+- RHEL 10.2 step-02 network verification with graphical remote execution.
+- Cluster/private interfaces are configured as directly connected networks with mandatory NetworkManager `never-default` routing; any recorded VLAN gateway is informational only.
+- Replaced NetworkManager profiles are archived with a manifest under `/root/clusterweaver-backups/network/` before removal from `nmcli`.
+- Minimal configuration, cluster, virtual-machine, and physical-server context icons.
+- Project-overview warning when a node has no cluster/private IP configured.
 
 ### Changed
 

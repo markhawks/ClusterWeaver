@@ -22,6 +22,7 @@ def project_to_dict(project: ProjectData) -> dict:
                 "minor": project.rhel_minor or "",
             },
             "platform_type": project.platform_type,
+            "hypervisor": project.hypervisor or "",
             "node_count": project.node_count,
             "created_at": project.created_at.isoformat() if project.created_at else None,
             "updated_at": project.updated_at.isoformat() if project.updated_at else None,
@@ -33,9 +34,13 @@ def project_to_dict(project: ProjectData) -> dict:
                 "fqdn": node.fqdn or "",
                 "site": node.site or "",
                 "management_ip": node.management_ip or "",
+                "management_gateway": node.management_gateway or "",
                 "cluster_ip": node.cluster_ip or "",
+                "cluster_gateway": node.cluster_gateway or "",
                 "primary_interface": node.primary_interface or "",
                 "secondary_interface": node.secondary_interface or "",
+                "bootstrap_ip": node.bootstrap_ip or "",
+                "ssh_port": node.ssh_port,
             }
             for node in sorted(project.nodes, key=lambda item: item.hostname.lower())
         ],

@@ -10,11 +10,16 @@
 <div class="row justify-content-center"><div class="col-xl-7"><div class="card shadow-sm"><div class="card-body p-4">
   <h1 class="h3 mb-4">{{ title }}</h1>
   <form method="post" novalidate>{{ form.hidden_tag() }}
-    {{ render_field(form.name) }}{{ render_field(form.customer) }}
-    <div class="form-text mt-n2 mb-3">The client, company, department, or lab that owns this cluster.</div>
+    {{ render_field(form.name) }}
+    <datalist id="project-name-suggestions"><option value="postgres-ha-prod"><option value="db2-ha-prod"><option value="apache-ha-prod"></datalist>
+    <div class="form-text mt-n2 mb-3">Suggested names: <code>postgres-ha-prod</code>, <code>db2-ha-prod</code>, or <code>apache-ha-prod</code>.</div>
+    {{ render_field(form.customer) }}
+    <div class="form-text mt-n2 mb-3">The company, department, customer, or lab that owns the cluster; for example <code>ACME</code>, <code>Database Team</code>, or <code>Home Lab</code>.</div>
     {{ render_field(form.description) }}
+    <div class="form-text mt-n2 mb-3">Examples: “Two-node PostgreSQL HA cluster”, “Two-node DB2 HA cluster”, or “Two-node Apache web cluster with high availability”.</div>
     <div class="row"><div class="col-md-6">{{ render_field(form.rhel_major) }}</div><div class="col-md-6">{{ render_field(form.rhel_minor) }}</div></div>
-    <div class="row"><div class="col-md-6">{{ render_field(form.platform_type) }}</div><div class="col-md-6">{{ render_field(form.node_count) }}</div></div>
+    <div class="row"><div class="col-md-6">{{ render_field(form.platform_type) }}</div><div class="col-md-6" id="hypervisor-field">{{ render_field(form.hypervisor) }}<div class="form-text mt-n2 mb-3">Used later to suggest the appropriate STONITH fencing agent.</div></div></div>
+    <div class="row"><div class="col-md-6">{{ render_field(form.node_count) }}</div></div>
     <div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save project</button><a class="btn btn-outline-secondary" href="{{ request.referrer or url_for('projects.index') }}">Cancel</a></div>
   </form>
 </div></div></div></div>

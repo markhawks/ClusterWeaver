@@ -7,7 +7,10 @@ body { background: #f4f6f8; }
 .card { border: 0; }
 .code-panel { background: #111827; color: #e5e7eb; border-radius: .5rem; padding: 1rem; max-height: 300px; overflow: auto; white-space: pre; font-size: .79rem; }
 .compact-code { max-height: 240px; margin-bottom: .5rem; }
+.fullscreen-code { max-height: none; min-height: 0; height: 100%; margin-bottom: .5rem; }
+#script-viewer .modal-body { min-height: 0; }
 .workflow-description { background: #fafbfc; }
+.cw-icon { width: 1.05rem; height: 1.05rem; flex: 0 0 auto; vertical-align: -.15em; }
 @media (min-width: 992px) { .border-start-lg { border-left: 1px solid #dee2e6; } }
 dd { color: #5f6873; }
 .clickable-row { cursor: pointer; }

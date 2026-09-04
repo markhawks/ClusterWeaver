@@ -10,9 +10,13 @@ class NodeData:
     fqdn: str = ""
     site: str = ""
     management_ip: str = ""
+    management_gateway: str = ""
     cluster_ip: str = ""
+    cluster_gateway: str = ""
     primary_interface: str = ""
     secondary_interface: str = ""
+    bootstrap_ip: str = ""
+    ssh_port: int = 22
     id: int | None = None
 
 
@@ -27,6 +31,7 @@ class ProjectData:
     platform_type: str
     node_count: int
     slug: str
+    hypervisor: str = ""
     nodes: list[NodeData] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None

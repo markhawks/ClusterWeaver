@@ -8,7 +8,7 @@ User=clusterweaver
 Group=clusterweaver
 WorkingDirectory=/var/www/html/ClusterWeaver
 EnvironmentFile=/etc/clusterweaver/clusterweaver.env
-ExecStart=/var/www/html/ClusterWeaver/.venv/bin/gunicorn --workers 2 --bind 0.0.0.0:5000 --access-logfile - --error-logfile - run:app
+ExecStart=/var/www/html/ClusterWeaver/.venv/bin/gunicorn --workers 2 --timeout 150 --graceful-timeout 30 --bind 0.0.0.0:5000 --access-logfile - --error-logfile - run:app
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=on-failure
 RestartSec=3
@@ -21,4 +21,3 @@ ReadWritePaths=/var/www/html/ClusterWeaver/data
 
 [Install]
 WantedBy=multi-user.target
-

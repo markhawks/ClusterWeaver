@@ -13,6 +13,7 @@ def generate_precheck(project: ProjectData) -> str:
         f"echo {shlex.quote(f'Customer: {project.customer}')}",
         f"echo {shlex.quote(f'Target OS: RHEL {project.rhel_major}.{project.rhel_minor}' if project.rhel_minor else f'Target OS: RHEL {project.rhel_major}')}",
         f"echo {shlex.quote(f'Platform: {project.platform_type}')}",
+        f"echo {shlex.quote(f'Hypervisor: {project.hypervisor or "not applicable"}')}",
         "",
         'echo "=== Local system information ==="',
         "hostnamectl 2>/dev/null || hostname",
@@ -22,7 +23,7 @@ def generate_precheck(project: ProjectData) -> str:
         'echo "=== Expected cluster nodes ==="',
     ]
     for node in sorted(project.nodes, key=lambda item: item.hostname.lower()):
-        description = f"{node.hostname} | nodename={node.nodename or '-'} | fqdn={node.fqdn or '-'} | site={node.site or '-'} | management={node.management_ip or '-'} | cluster={node.cluster_ip or '-'} | interfaces={node.primary_interface or '-'},{node.secondary_interface or '-'}"
+        description = f"{node.hostname} | nodename={node.nodename or '-'} | fqdn={node.fqdn or '-'} | site={node.site or '-'} | management={node.management_ip or '-'} via {node.management_gateway or '-'} | cluster={node.cluster_ip or '-'} via {node.cluster_gateway or '-'} | interfaces={node.primary_interface or '-'},{node.secondary_interface or '-'}"
         lines.append(f"echo {shlex.quote(description)}")
     if not project.nodes:
         lines.append('echo "No nodes configured yet."')
