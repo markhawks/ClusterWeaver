@@ -5,7 +5,10 @@ body { background: #f4f6f8; }
 .info-button { border-radius: 50%; font-weight: 700; line-height: 1; padding: .2rem .46rem; }
 @media (max-width: 575.98px) { .brand-logo { width: 40px; height: 40px; } }
 .card { border: 0; }
-.code-panel { background: #111827; color: #e5e7eb; border-radius: .5rem; padding: 1rem; max-height: 65vh; overflow: auto; white-space: pre; font-size: .82rem; }
+.code-panel { background: #111827; color: #e5e7eb; border-radius: .5rem; padding: 1rem; max-height: 300px; overflow: auto; white-space: pre; font-size: .79rem; }
+.compact-code { max-height: 240px; margin-bottom: .5rem; }
+.workflow-description { background: #fafbfc; }
+@media (min-width: 992px) { .border-start-lg { border-left: 1px solid #dee2e6; } }
 dd { color: #5f6873; }
 .clickable-row { cursor: pointer; }
 .clickable-row:focus { outline: 3px solid rgba(13, 110, 253, .35); outline-offset: -3px; }

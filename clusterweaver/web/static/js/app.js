@@ -40,6 +40,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll('[data-bs-toggle="popover"]').forEach((element) => {
     new bootstrap.Popover(element);
   });
+  document.querySelectorAll(".collapse").forEach((panel) => {
+    const selector = `[data-bs-target="#${panel.id}"]`;
+    const toggle = document.querySelector(selector);
+    if (!toggle) return;
+    const isScript = toggle.textContent.trim().toLowerCase().includes("script");
+    panel.addEventListener("shown.bs.collapse", () => { toggle.textContent = isScript ? "Hide script" : "Hide"; });
+    panel.addEventListener("hidden.bs.collapse", () => { toggle.textContent = isScript ? "Show script" : "Show"; });
+  });
 
   const major = document.getElementById("rhel_major");
   const minor = document.getElementById("rhel_minor");

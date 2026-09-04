@@ -16,6 +16,9 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Last modified" in response.data
     assert b"clusterweaver-sphere-logo.png" in response.data
     assert b'rel="icon"' in response.data
+    assert b"Generated workflow" in response.data
+    assert response.data.count(b"Show script") == 3
+    assert b'id="project-configuration" class="collapse show"' in response.data
     with app.app_context():
         assert db.session.query(ProjectRecord).count() == 1
     root = app.config["PROJECTS_ROOT"]
