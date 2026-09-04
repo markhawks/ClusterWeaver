@@ -32,3 +32,16 @@ document.addEventListener("DOMContentLoaded", () => {
   major.addEventListener("change", () => updateMinorChoices(true));
   updateMinorChoices(false);
 });
+
+document.addEventListener("click", (event) => {
+  const row = event.target.closest(".clickable-row[data-href]");
+  if (!row || event.target.closest("a, button, input, select, textarea")) return;
+  window.location.assign(row.dataset.href);
+});
+
+document.addEventListener("keydown", (event) => {
+  const row = event.target.closest(".clickable-row[data-href]");
+  if (!row || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  window.location.assign(row.dataset.href);
+});

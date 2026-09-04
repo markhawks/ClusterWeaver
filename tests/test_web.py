@@ -19,6 +19,9 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     root = app.config["PROJECTS_ROOT"]
     assert (root / "db2-prod" / "project.yaml").exists()
     assert (root / ".git").exists()
+    project_list = client.get("/")
+    assert b'class="clickable-row"' in project_list.data
+    assert b'role="link"' in project_list.data
     history = subprocess.run(["git", "log", "--oneline"], cwd=root, check=True, capture_output=True, text=True)
     assert "Create DB2 PROD project" in history.stdout
 

@@ -10,6 +10,10 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 - AGPL-3.0 copyleft license and community contribution/security documentation.
 
+### Changed
+
+- Project list rows can be opened directly with a mouse or keyboard.
+
 ### Planned
 
 - Network interface, bond, and VLAN configuration.

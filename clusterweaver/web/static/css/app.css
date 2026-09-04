@@ -5,3 +5,5 @@ body { background: #f4f6f8; }
 .card { border: 0; }
 .code-panel { background: #111827; color: #e5e7eb; border-radius: .5rem; padding: 1rem; max-height: 65vh; overflow: auto; white-space: pre; font-size: .82rem; }
 dd { color: #5f6873; }
+.clickable-row { cursor: pointer; }
+.clickable-row:focus { outline: 3px solid rgba(13, 110, 253, .35); outline-offset: -3px; }
