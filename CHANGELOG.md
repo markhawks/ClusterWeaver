@@ -6,6 +6,10 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+### Added
+
+- Apache-2.0 open-source license and community contribution/security documentation.
+
 ### Planned
 
 - Network interface, bond, and VLAN configuration.
@@ -36,4 +40,3 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 - Dedicated unprivileged system account for the service.
 - Session secret stored outside the source repository.
 - systemd filesystem and privilege restrictions.
-
