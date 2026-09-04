@@ -2,13 +2,15 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest(".copy-code");
   if (!button) return;
   const source = document.getElementById(button.dataset.target);
-  const status = document.getElementById("copy-status");
+  const status = button.closest(".card-body, .card")?.querySelector(".copy-status, #copy-status");
   try {
     await navigator.clipboard.writeText(source.textContent);
-    status.textContent = "Copied to clipboard.";
+    if (status) status.textContent = "Copied to clipboard.";
   } catch (_error) {
-    status.textContent = "Copy failed. Select the text manually.";
-    status.className = "small text-danger";
+    if (status) {
+      status.textContent = "Copy failed. Select the text manually.";
+      status.className = "small text-danger";
+    }
   }
 });
 

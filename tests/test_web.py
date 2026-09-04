@@ -31,7 +31,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
 
 def test_node_creation_updates_generated_script(client, app):
     response = client.post("/projects/new", data={
-        "name": "Web Cluster", "customer": "Example", "rhel_major": "10", "rhel_minor": "2",
+        "name": "Web Cluster", "customer": "Example", "rhel_major": "9", "rhel_minor": "8",
         "platform_type": "virtual", "node_count": "2",
     })
     project_url = response.headers["Location"]
@@ -61,6 +61,10 @@ def test_node_creation_updates_generated_script(client, app):
     }, follow_redirects=True)
     assert b"Node cloned" in clone.data
     assert b"node02lanc" in clone.data
+    assert b"02 \xc2\xb7 Network verification" in response.data
+    network_download = client.get(f"{project_url}/network-check.sh")
+    assert network_download.status_code == 200
+    assert b"network verification" in network_download.data
 
 
 def test_invalid_ip_is_rejected(client):

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 import yaml
 
-from clusterweaver.core.generators import generate_precheck
+from clusterweaver.core.generators import generate_network_check, generate_precheck
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
@@ -42,6 +42,16 @@ def test_generator_contains_project_and_node_data():
     assert "DB2 PROD" in script and "node01.example.test" in script
     assert "RHEL 9.8" in script and "set -o pipefail" in script
     assert "interfaces=ens160,ens224" in script
+
+
+def test_rhel_98_network_check_is_read_only_and_node_aware():
+    script = generate_network_check(sample_project())
+    assert "RHEL 9.8 network verification" in script
+    assert "node01)" in script
+    assert "PRIMARY_IFACE=ens160" in script
+    assert "EXPECTED_CLUSTER_IP=192.168.1.11" in script
+    assert "no changes made" in script
+    assert "nmcli" in script and "ip -brief link" in script
 
 
 def test_git_commits_changes_only_once(tmp_path):
