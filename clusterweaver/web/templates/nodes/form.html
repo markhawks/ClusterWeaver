@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% from "_form_helpers.html" import render_field %}
+{% block title %}{{ title }} · ClusterWeaver{% endblock %}
+{% block navigation %}
+<nav class="d-flex justify-content-between align-items-center mb-3" aria-label="Breadcrumb">
+  <ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{{ url_for('projects.index') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.name }}</a></li><li class="breadcrumb-item active" aria-current="page">{{ title }}</li></ol>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('projects.index') }}">← All projects</a>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-7"><div class="card shadow-sm"><div class="card-body p-4">
+  <p class="text-secondary mb-1">{{ project.name }}</p><h1 class="h3 mb-4">{{ title }}</h1>
+  <form method="post" novalidate>{{ form.hidden_tag() }}
+    <div class="row"><div class="col-md-6">{{ render_field(form.hostname) }}</div><div class="col-md-6">{{ render_field(form.fqdn) }}</div></div>
+    <div class="mb-3">
+      <div class="d-flex align-items-center gap-2">
+        {{ form.site.label(class="form-label mb-0") }}
+        <button type="button" class="btn btn-sm btn-outline-secondary info-button" aria-label="Site examples"
+                data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="right" data-bs-html="true"
+                data-bs-title="Site examples"
+                data-bs-content="<strong>Single site:</strong> Roma or Datacenter-A<br><strong>Geographic cluster:</strong> Firenze / Siena<br><strong>Virtual:</strong> VMware-DC1 or Availability-Zone-1<br><strong>Laboratory:</strong> Lab">
+          i
+        </button>
+      </div>
+      {{ form.site(class="form-control mt-2" + (" is-invalid" if form.site.errors else "")) }}
+      {% for error in form.site.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+      <div class="form-text">Physical or logical location of this node; use the same value for nodes in the same site.</div>
+    </div>
+    <div class="row"><div class="col-md-6">{{ render_field(form.management_ip) }}</div><div class="col-md-6">{{ render_field(form.cluster_ip) }}</div></div>
+    <div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save node</button><a class="btn btn-outline-secondary" href="{{ url_for('projects.detail', project_id=project.id) }}">Cancel</a></div>
+  </form>
+</div></div></div></div>
+{% endblock %}

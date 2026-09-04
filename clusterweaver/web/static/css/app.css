@@ -1,0 +1,7 @@
+body { background: #f4f6f8; }
+.navbar-brand { font-weight: 700; letter-spacing: .02em; }
+.brand-home-hint { font-size: .68em; font-weight: 400; opacity: .72; }
+.info-button { border-radius: 50%; font-weight: 700; line-height: 1; padding: .2rem .46rem; }
+.card { border: 0; }
+.code-panel { background: #111827; color: #e5e7eb; border-radius: .5rem; padding: 1rem; max-height: 65vh; overflow: auto; white-space: pre; font-size: .82rem; }
+dd { color: #5f6873; }

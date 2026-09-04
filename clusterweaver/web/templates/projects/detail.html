@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} · ClusterWeaver{% endblock %}
+{% block navigation %}
+<nav class="d-flex justify-content-between align-items-center mb-3" aria-label="Breadcrumb">
+  <ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{{ url_for('projects.index') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">{{ project.name }}</li></ol>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('projects.index') }}">← All projects</a>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div><p class="text-secondary mb-1">{{ project.customer }}</p><h1 class="h2 mb-1">{{ project.name }}</h1><span class="badge text-bg-secondary">RHEL {{ project.rhel_major }}{% if project.rhel_minor %}.{{ project.rhel_minor }}{% endif %}</span> <span class="badge text-bg-light text-capitalize">{{ project.platform_type }}</span></div>
+  <a class="btn btn-outline-primary" href="{{ url_for('projects.edit_project', project_id=project.id) }}">Edit project</a>
+</div>
+<div class="row g-4">
+  <aside class="col-xl-3"><div class="card shadow-sm h-100"><div class="card-header fw-semibold">Configuration</div><div class="card-body">
+    <dl>
+      <dt>Created</dt><dd>{{ project.created_at|local_datetime }}</dd>
+      <dt>Last modified</dt><dd>{{ project.updated_at|local_datetime }}</dd>
+      <dt>Expected nodes</dt><dd>{{ project.node_count }}</dd>
+      <dt>Project UUID</dt><dd class="small text-break">{{ project.uuid }}</dd>
+    </dl>
+    {% if project.description %}<hr><p class="small mb-0">{{ project.description }}</p>{% endif %}
+  </div></div></aside>
+  <section class="col-xl-4"><div class="card shadow-sm h-100"><div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">Cluster overview</span><a class="btn btn-sm btn-primary" href="{{ url_for('projects.create_node', project_id=project.id) }}">Add node</a></div><div class="card-body p-0">
+    {% if project.nodes %}<div class="list-group list-group-flush">{% for node in project.nodes %}<div class="list-group-item"><div class="d-flex justify-content-between"><strong>{{ node.hostname }}</strong><a href="{{ url_for('projects.edit_node', project_id=project.id, node_id=node.id) }}">Edit</a></div><small class="text-secondary">{{ node.site or 'No site' }} · mgmt {{ node.management_ip or '—' }} · private {{ node.cluster_ip or '—' }}</small></div>{% endfor %}</div>
+    {% else %}<p class="text-secondary text-center py-5">No nodes configured.</p>{% endif %}
+  </div></div></section>
+  <section class="col-xl-5"><div class="card shadow-sm h-100"><div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">01 · Generated pre-checks</span><div class="btn-group btn-group-sm"><button class="btn btn-outline-primary copy-code" data-target="precheck-code">Copy</button><a class="btn btn-outline-primary" href="{{ url_for('projects.download_precheck', project_id=project.id) }}">Download</a></div></div><div class="card-body"><pre id="precheck-code" class="code-panel"><code>{{ script }}</code></pre><div id="copy-status" class="small text-success" aria-live="polite"></div></div></div></section>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Projects · ClusterWeaver{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h1 class="h2 mb-1">Projects</h1><p class="text-secondary mb-0">Your cluster configuration history.</p></div>
+  <a class="btn btn-primary" href="{{ url_for('projects.create_project') }}">New project</a>
+</div>
+{% if projects %}
+<div class="table-responsive card shadow-sm"><table class="table table-hover align-middle mb-0">
+  <thead><tr><th>Project</th><th>Customer</th><th>Target</th><th>Platform</th><th>Nodes</th><th>Created</th><th>Last modified</th><th></th></tr></thead>
+  <tbody>{% for project in projects %}<tr>
+    <td><strong>{{ project.name }}</strong><br><small class="text-secondary">{{ project.slug }}</small></td>
+    <td>{{ project.customer }}</td><td>RHEL {{ project.rhel_major }}{% if project.rhel_minor %}.{{ project.rhel_minor }}{% endif %}</td>
+    <td class="text-capitalize">{{ project.platform_type }}</td><td>{{ project.nodes|length }} / {{ project.node_count }}</td>
+    <td class="text-nowrap">{{ project.created_at|local_datetime }}</td><td class="text-nowrap">{{ project.updated_at|local_datetime }}</td>
+    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('projects.detail', project_id=project.id) }}">Open</a></td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<div class="card shadow-sm"><div class="card-body py-5 text-center"><h2 class="h4">No projects yet</h2><p class="text-secondary">Create the first cluster definition.</p><a class="btn btn-primary" href="{{ url_for('projects.create_project') }}">New project</a></div></div>{% endif %}
+{% endblock %}

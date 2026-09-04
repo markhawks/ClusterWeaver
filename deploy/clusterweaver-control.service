@@ -1,0 +1,24 @@
+[Unit]
+Description=ClusterWeaver web application
+After=network.target
+
+[Service]
+Type=simple
+User=clusterweaver
+Group=clusterweaver
+WorkingDirectory=/var/www/html/ClusterWeaver
+EnvironmentFile=/etc/clusterweaver/clusterweaver.env
+ExecStart=/var/www/html/ClusterWeaver/.venv/bin/gunicorn --workers 2 --bind 0.0.0.0:5000 --access-logfile - --error-logfile - run:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/html/ClusterWeaver/data
+
+[Install]
+WantedBy=multi-user.target
+

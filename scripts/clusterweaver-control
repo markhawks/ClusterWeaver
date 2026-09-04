@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -o errexit
+set -o nounset
+set -o pipefail
+
+service_name="clusterweaver-control.service"
+action="${1:-status}"
+
+if [[ ${EUID} -eq 0 ]]; then
+    systemctl_cmd=(systemctl)
+    journalctl_cmd=(journalctl)
+else
+    systemctl_cmd=(sudo systemctl)
+    journalctl_cmd=(sudo journalctl)
+fi
+
+case "${action}" in
+    start|stop|restart|status)
+        "${systemctl_cmd[@]}" "${action}" "${service_name}"
+        ;;
+    reload)
+        "${systemctl_cmd[@]}" reload "${service_name}"
+        ;;
+    logs)
+        "${journalctl_cmd[@]}" -u "${service_name}" -f
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|reload|status|logs}" >&2
+        exit 2
+        ;;
+esac

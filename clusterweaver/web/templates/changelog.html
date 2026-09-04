@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Changelog · ClusterWeaver{% endblock %}
+{% block navigation %}
+<nav class="mb-3" aria-label="Breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{{ url_for('projects.index') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Changelog</li></ol></nav>
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-9">
+  <div class="mb-4"><h1 class="h2 mb-1">Changelog</h1><p class="text-secondary">Release history and planned ClusterWeaver changes.</p></div>
+  {% for release in releases %}
+  <article class="card shadow-sm mb-4"><div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-baseline border-bottom pb-2 mb-3">
+      <h2 class="h4 mb-0">{{ release.version }}</h2>{% if release.date %}<time class="text-secondary">{{ release.date }}</time>{% endif %}
+    </div>
+    <div class="row g-4">{% for section in release.sections %}<section class="col-md-6"><h3 class="h6 text-uppercase text-secondary">{{ section.title }}</h3><ul class="mb-0">{% for item in section.items %}<li class="mb-1">{{ item }}</li>{% endfor %}</ul></section>{% endfor %}</div>
+  </div></article>
+  {% endfor %}
+</div></div>
+{% endblock %}
