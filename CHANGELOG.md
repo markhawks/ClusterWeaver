@@ -12,6 +12,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 - Editable primary and secondary node interface selectors with reusable custom names.
 - Node cloning, cluster nodename, automatic hostname derivation, and duplicate identity/IP detection.
 - Official project logo in the repository, README, application header, and browser bookmarks.
+- High-contrast white logo background for application navigation and browser bookmarks.
 
 ### Changed
 

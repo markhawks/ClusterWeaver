@@ -1,9 +1,9 @@
 body { background: #f4f6f8; }
 .navbar-brand { font-weight: 700; letter-spacing: .02em; }
-.brand-logo { width: 42px; height: 42px; object-fit: contain; }
+.brand-logo { width: 46px; height: 46px; object-fit: contain; background: #fff; border: 1px solid #d7dce1; border-radius: 50%; padding: 4px; }
 .brand-home-hint { font-size: .68em; font-weight: 400; opacity: .72; }
 .info-button { border-radius: 50%; font-weight: 700; line-height: 1; padding: .2rem .46rem; }
-@media (max-width: 575.98px) { .brand-logo { width: 34px; height: 34px; } }
+@media (max-width: 575.98px) { .brand-logo { width: 38px; height: 38px; padding: 3px; } }
 .card { border: 0; }
 .code-panel { background: #111827; color: #e5e7eb; border-radius: .5rem; padding: 1rem; max-height: 65vh; overflow: auto; white-space: pre; font-size: .82rem; }
 dd { color: #5f6873; }

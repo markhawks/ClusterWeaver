@@ -15,6 +15,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Created" in response.data
     assert b"Last modified" in response.data
     assert b"clusterweaver-mark.png" in response.data
+    assert b'img/clusterweaver-logo.png' in response.data
     assert b'rel="icon"' in response.data
     with app.app_context():
         assert db.session.query(ProjectRecord).count() == 1
