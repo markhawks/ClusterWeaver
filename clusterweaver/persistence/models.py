@@ -38,6 +38,7 @@ class NodeRecord(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     hostname: Mapped[str] = mapped_column(String(253))
+    nodename: Mapped[str] = mapped_column(String(253), default="")
     fqdn: Mapped[str] = mapped_column(String(253), default="")
     site: Mapped[str] = mapped_column(String(120), default="")
     management_ip: Mapped[str] = mapped_column(String(45), default="")

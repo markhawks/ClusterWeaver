@@ -22,7 +22,7 @@ def generate_precheck(project: ProjectData) -> str:
         'echo "=== Expected cluster nodes ==="',
     ]
     for node in sorted(project.nodes, key=lambda item: item.hostname.lower()):
-        description = f"{node.hostname} | fqdn={node.fqdn or '-'} | site={node.site or '-'} | management={node.management_ip or '-'} | cluster={node.cluster_ip or '-'} | interfaces={node.primary_interface or '-'},{node.secondary_interface or '-'}"
+        description = f"{node.hostname} | nodename={node.nodename or '-'} | fqdn={node.fqdn or '-'} | site={node.site or '-'} | management={node.management_ip or '-'} | cluster={node.cluster_ip or '-'} | interfaces={node.primary_interface or '-'},{node.secondary_interface or '-'}"
         lines.append(f"echo {shlex.quote(description)}")
     if not project.nodes:
         lines.append('echo "No nodes configured yet."')

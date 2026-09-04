@@ -27,6 +27,7 @@ def to_domain(record: ProjectRecord) -> ProjectData:
             NodeData(
                 id=node.id,
                 hostname=node.hostname,
+                nodename=node.nodename,
                 fqdn=node.fqdn,
                 site=node.site,
                 management_ip=node.management_ip,
@@ -68,6 +69,26 @@ class ProjectRepository:
         )
         saved = {value.strip() for value in self.session.scalars(statement) if value and value.strip()}
         return sorted({"ens160", "ens224", *saved})
+
+    def node_conflicts(self, project_id: int, values: dict[str, str], excluding_id: int | None = None) -> dict[str, str]:
+        statement = select(NodeRecord).where(NodeRecord.project_id == project_id)
+        if excluding_id is not None:
+            statement = statement.where(NodeRecord.id != excluding_id)
+        nodes = self.session.scalars(statement).all()
+        conflicts: dict[str, str] = {}
+        for field in ("hostname", "fqdn", "nodename"):
+            candidate = values.get(field, "").strip().lower()
+            if candidate and any(getattr(node, field).strip().lower() == candidate for node in nodes):
+                conflicts[field] = f"This {field} is already used by another node in the project."
+        used_ips = {address for node in nodes for address in (node.management_ip.strip(), node.cluster_ip.strip()) if address}
+        for field in ("management_ip", "cluster_ip"):
+            candidate = values.get(field, "").strip()
+            if candidate and candidate in used_ips:
+                conflicts[field] = "This IP address is already used by another node in the project."
+        management_ip = values.get("management_ip", "").strip()
+        if management_ip and management_ip == values.get("cluster_ip", "").strip():
+            conflicts["cluster_ip"] = "Management and cluster IP addresses must be different."
+        return conflicts
 
     def add_project(self, **values) -> ProjectRecord:
         record = ProjectRecord(**values)

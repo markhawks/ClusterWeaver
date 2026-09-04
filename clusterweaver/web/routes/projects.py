@@ -45,6 +45,18 @@ def persist_files(project_id: int, message: str) -> bool:
     return committed
 
 
+def node_form_values(form: NodeForm) -> dict[str, str]:
+    fields = ("hostname", "nodename", "fqdn", "site", "management_ip", "cluster_ip", "primary_interface", "secondary_interface")
+    return {field: (getattr(form, field).data or "").strip() for field in fields}
+
+
+def add_conflict_errors(form: NodeForm, project_id: int, excluding_id: int | None = None) -> bool:
+    conflicts = repository().node_conflicts(project_id, node_form_values(form), excluding_id)
+    for field, message in conflicts.items():
+        getattr(form, field).errors.append(message)
+    return bool(conflicts)
+
+
 @projects_bp.get("/")
 def index():
     return render_template("projects/index.html", projects=repository().list())
@@ -114,17 +126,10 @@ def create_node(project_id: int):
         abort(404)
     form = NodeForm()
     if form.validate_on_submit():
+        if add_conflict_errors(form, project_id):
+            return render_template("nodes/form.html", form=form, project=record, title="Add node", interface_names=repository().interface_names())
         try:
-            repository().add_node(
-                record,
-                hostname=form.hostname.data.strip(),
-                fqdn=form.fqdn.data.strip() if form.fqdn.data else "",
-                site=form.site.data.strip() if form.site.data else "",
-                management_ip=form.management_ip.data.strip() if form.management_ip.data else "",
-                cluster_ip=form.cluster_ip.data.strip() if form.cluster_ip.data else "",
-                primary_interface=form.primary_interface.data.strip() if form.primary_interface.data else "",
-                secondary_interface=form.secondary_interface.data.strip() if form.secondary_interface.data else "",
-            )
+            repository().add_node(record, **node_form_values(form))
             record.updated_at = datetime.now(timezone.utc)
             db.session.commit()
         except IntegrityError:
@@ -137,6 +142,25 @@ def create_node(project_id: int):
     return render_template("nodes/form.html", form=form, project=record, title="Add node", interface_names=repository().interface_names())
 
 
+@projects_bp.route("/projects/<int:project_id>/nodes/<int:node_id>/clone", methods=["GET", "POST"])
+def clone_node(project_id: int, node_id: int):
+    record = repository().get_record(project_id)
+    if record is None:
+        abort(404)
+    source = next((item for item in record.nodes if item.id == node_id), None)
+    if source is None:
+        abort(404)
+    form = NodeForm(obj=source)
+    if form.validate_on_submit() and not add_conflict_errors(form, project_id):
+        clone = repository().add_node(record, **node_form_values(form))
+        record.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        persist_files(record.id, f"Clone node {source.hostname} as {clone.hostname} in {record.name}")
+        flash("Node cloned.", "success")
+        return redirect(url_for("projects.detail", project_id=record.id))
+    return render_template("nodes/form.html", form=form, project=record, title=f"Clone node {source.hostname}", interface_names=repository().interface_names())
+
+
 @projects_bp.route("/projects/<int:project_id>/nodes/<int:node_id>/edit", methods=["GET", "POST"])
 def edit_node(project_id: int, node_id: int):
     record = repository().get_record(project_id)
@@ -147,7 +171,10 @@ def edit_node(project_id: int, node_id: int):
         abort(404)
     form = NodeForm(obj=node)
     if form.validate_on_submit():
+        if add_conflict_errors(form, project_id, node.id):
+            return render_template("nodes/form.html", form=form, project=record, title="Edit node", interface_names=repository().interface_names())
         node.hostname = form.hostname.data.strip()
+        node.nodename = form.nodename.data.strip()
         node.fqdn = form.fqdn.data.strip() if form.fqdn.data else ""
         node.site = form.site.data.strip() if form.site.data else ""
         node.management_ip = form.management_ip.data.strip() if form.management_ip.data else ""

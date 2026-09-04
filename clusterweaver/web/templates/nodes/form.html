@@ -9,8 +9,11 @@
 {% block content %}
 <div class="row justify-content-center"><div class="col-xl-7"><div class="card shadow-sm"><div class="card-body p-4">
   <p class="text-secondary mb-1">{{ project.name }}</p><h1 class="h3 mb-4">{{ title }}</h1>
+  {% if title.startswith('Clone node') %}<div class="alert alert-info">Update hostname, cluster node name, FQDN, and IP addresses before saving. Duplicate values are not allowed in the same project.</div>{% endif %}
   <form method="post" novalidate>{{ form.hidden_tag() }}
-    <div class="row"><div class="col-md-6">{{ render_field(form.hostname) }}</div><div class="col-md-6">{{ render_field(form.fqdn) }}</div></div>
+    <div class="row"><div class="col-md-6">{{ render_field(form.fqdn) }}</div><div class="col-md-6">{{ render_field(form.hostname) }}</div></div>
+    {{ render_field(form.nodename) }}
+    <div class="form-text mt-n2 mb-3">Used to build the cluster configuration; suggested value: hostname + <code>lanc</code>.</div>
     <div class="mb-3">
       <div class="d-flex align-items-center gap-2">
         {{ form.site.label(class="form-label mb-0") }}

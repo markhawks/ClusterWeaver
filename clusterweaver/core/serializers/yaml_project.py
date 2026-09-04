@@ -29,6 +29,7 @@ def project_to_dict(project: ProjectData) -> dict:
         "nodes": [
             {
                 "hostname": node.hostname,
+                "nodename": node.nodename or "",
                 "fqdn": node.fqdn or "",
                 "site": node.site or "",
                 "management_ip": node.management_ip or "",

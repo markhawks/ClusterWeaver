@@ -14,6 +14,7 @@ def valid_ip(_form, field) -> None:
 
 class NodeForm(FlaskForm):
     hostname = StringField("Hostname", validators=[DataRequired(), Length(max=253)])
+    nodename = StringField("Cluster node name", validators=[DataRequired(), Length(max=253)])
     fqdn = StringField("FQDN", validators=[Optional(), Length(max=253)])
     site = StringField(
         "Site",

@@ -45,3 +45,30 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   window.location.assign(row.dataset.href);
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fqdn = document.getElementById("fqdn");
+  const hostname = document.getElementById("hostname");
+  const nodename = document.getElementById("nodename");
+  if (!fqdn || !hostname || !nodename) return;
+
+  let generatedHostname = hostname.value;
+  let generatedNodename = `${hostname.value}lanc`;
+  const updateFromFqdn = () => {
+    const shortName = fqdn.value.trim().split(".")[0];
+    if (!shortName) return;
+    const nodenameWasGenerated = !nodename.value || nodename.value === generatedNodename;
+    hostname.value = shortName;
+    generatedHostname = shortName;
+    generatedNodename = `${shortName}lanc`;
+    if (nodenameWasGenerated) nodename.value = generatedNodename;
+  };
+  fqdn.addEventListener("input", updateFromFqdn);
+  hostname.addEventListener("input", () => {
+    if (!nodename.value || nodename.value === generatedNodename) {
+      generatedHostname = hostname.value.trim();
+      generatedNodename = `${generatedHostname}lanc`;
+      nodename.value = generatedNodename;
+    }
+  });
+});

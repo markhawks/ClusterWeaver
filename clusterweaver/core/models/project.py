@@ -6,6 +6,7 @@ from uuid import UUID
 @dataclass(slots=True)
 class NodeData:
     hostname: str
+    nodename: str = ""
     fqdn: str = ""
     site: str = ""
     management_ip: str = ""

@@ -1,5 +1,5 @@
 from clusterweaver.persistence import db
-from clusterweaver.persistence.models import ProjectRecord
+from clusterweaver.persistence.models import NodeRecord, ProjectRecord
 import subprocess
 
 
@@ -26,14 +26,14 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert "Create DB2 PROD project" in history.stdout
 
 
-def test_node_creation_updates_generated_script(client):
+def test_node_creation_updates_generated_script(client, app):
     response = client.post("/projects/new", data={
         "name": "Web Cluster", "customer": "Example", "rhel_major": "10", "rhel_minor": "2",
         "platform_type": "virtual", "node_count": "2",
     })
     project_url = response.headers["Location"]
     response = client.post(f"{project_url}/nodes/new", data={
-        "hostname": "node01", "fqdn": "node01.example.test", "site": "Roma",
+        "hostname": "node01", "nodename": "node01lanc", "fqdn": "node01.example.test", "site": "Roma",
         "management_ip": "10.0.0.11", "cluster_ip": "192.168.0.11",
         "primary_interface": "ens160", "secondary_interface": "custom1",
     }, follow_redirects=True)
@@ -42,6 +42,22 @@ def test_node_creation_updates_generated_script(client):
     assert b"ens160 / custom1" in response.data
     add_node_page = client.get(f"{project_url}/nodes/new")
     assert b'<option value="custom1">' in add_node_page.data
+    duplicate = client.post(f"{project_url}/nodes/new", data={
+        "hostname": "node01", "nodename": "node01lanc", "fqdn": "node01.example.test",
+        "management_ip": "10.0.0.11", "cluster_ip": "192.168.0.12",
+    })
+    assert b"already used by another node" in duplicate.data
+    with app.app_context():
+        node_id = db.session.query(NodeRecord.id).scalar()
+    clone_page = client.get(f"{project_url}/nodes/{node_id}/clone")
+    assert b"Clone node node01" in clone_page.data
+    clone = client.post(f"{project_url}/nodes/{node_id}/clone", data={
+        "hostname": "node02", "nodename": "node02lanc", "fqdn": "node02.example.test", "site": "Roma",
+        "management_ip": "10.0.0.12", "cluster_ip": "192.168.0.12",
+        "primary_interface": "ens160", "secondary_interface": "custom1",
+    }, follow_redirects=True)
+    assert b"Node cloned" in clone.data
+    assert b"node02lanc" in clone.data
 
 
 def test_invalid_ip_is_rejected(client):
