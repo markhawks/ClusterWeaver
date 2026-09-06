@@ -1,15 +1,15 @@
 # ClusterWeaver session handoff
 
-Updated: 2026-09-04 (Europe/Rome)
+Updated: 2026-09-06 (Europe/Rome)
 
 ## Repository state
 
 - Working directory: `/var/www/html/ClusterWeaver`
 - Git branch: `main`
-- Current released version: `0.1.2`
+- Current released version: `0.1.3`
 - Application version source: `clusterweaver/version.py`
 - Service: `clusterweaver-control`
-- Database migration head: `0007_step_results`
+- Database migration head: `0010_user_theme`
 
 ## Work released in 0.1.2
 
@@ -53,7 +53,21 @@ Updated: 2026-09-04 (Europe/Rome)
   - red arrow when SSH discovery has at least one failure;
   - grey arrow while setup is incomplete.
 - Added minimal Projects, Home, notebook, cluster, VM, server, settings, and search icons.
-- Changelog is right-aligned in the navigation and displays `v0.1.2`.
+- Changelog is right-aligned in the navigation; version and component details are displayed by clicking the ClusterWeaver logo.
+
+## Work released in 0.1.3
+
+- Added database-backed login, password management and the `user`, `clusteradmin`, and `administrator` roles. The deployment credentials create only the initial administrator.
+- User records track `password_changed_at`; Configuration displays the latest password-change date separately from other account changes.
+- Added branded login page, authenticated session, and CSRF-protected logout.
+- Limited hostnames to 30 characters and restricted them to safe hostname characters.
+- Reworked SSH output collection to drain stdout and stderr while commands run, retain at most 20 KB, and enforce a hard timeout.
+- Updated the runtime and requirement from unsupported Gunicorn 23.x to maintained Gunicorn 26.x; its optional control socket is disabled for compatibility with the hardened systemd filesystem.
+- The SQLite database remains locally readable by deliberate operator choice for emergency diagnosis.
+- Added per-user theme selection with soft dark grey as default, global high-contrast styling, compact project workflows, and a centred login layout.
+- Replaced the square-backed logo with an RGBA PNG whose area outside the white circle is transparent; the same asset serves the navbar, login, modal, and favicon.
+- The initial empty-database account is `admin` / `changeme`; it must be changed immediately from Configuration.
+- Added migrations `0008_users`, `0009_password_changed`, and `0010_user_theme`.
 
 ## Validation performed
 
@@ -66,14 +80,15 @@ git diff --check
 systemctl is-active clusterweaver-control
 ```
 
-Expected test result: `40 passed`.
+Expected test result: `44 passed`.
 
 ## Important operational notes
 
 - Passwords entered for SSH operations are request-scoped and are not stored in project execution results.
+- Initial application bootstrap credentials may be supplied through the protected environment file and must not reuse node root credentials. They are ignored once an account exists.
 - Older Step 00 actions performed before migration `0007` have no execution records. Those projects must execute Step 00 again before Step 01 becomes available.
 - Peer SSH trust is idempotent: existing Ed25519 keys are reused and exact authorized keys are not duplicated.
-- Release `0.1.2` contains the remote workflow, execution-state, network-safety, project-list, and navigation work described above.
+- Release `0.1.3` adds authentication, role-based authorization, account/password management, security fixes, updated Gunicorn support, theme selection, accessible dark styling, responsive navigation, and transparent branding.
 
 ## Suggested next session start
 

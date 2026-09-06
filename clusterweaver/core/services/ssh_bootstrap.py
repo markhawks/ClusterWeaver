@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import shlex
+import time
 from dataclasses import dataclass
 
 import paramiko
@@ -62,9 +63,30 @@ def _connect(node, password: str) -> tuple[paramiko.SSHClient, str]:
 
 def _run(client: paramiko.SSHClient, command: str) -> tuple[int, str]:
     _stdin, stdout, stderr = client.exec_command(command, timeout=20)
-    status = stdout.channel.recv_exit_status()
-    output = (stdout.read() + stderr.read()).decode("utf-8", errors="replace")
-    return status, output[-20000:]
+    return _collect_channel(stdout.channel, timeout=20)
+
+
+def _collect_channel(channel, timeout: int) -> tuple[int, str]:
+    """Drain both SSH streams while the command runs, retaining bounded output."""
+    deadline = time.monotonic() + timeout
+    output = bytearray()
+    while True:
+        received = False
+        while channel.recv_ready():
+            output.extend(channel.recv(32768))
+            received = True
+        while channel.recv_stderr_ready():
+            output.extend(channel.recv_stderr(32768))
+            received = True
+        if len(output) > 20000:
+            del output[:-20000]
+        if channel.exit_status_ready() and not channel.recv_ready() and not channel.recv_stderr_ready():
+            return channel.recv_exit_status(), output.decode("utf-8", errors="replace")
+        if time.monotonic() >= deadline:
+            channel.close()
+            raise TimeoutError(f"Remote command exceeded the {timeout}-second execution limit.")
+        if not received:
+            time.sleep(0.01)
 
 
 def discover_node(node, password: str) -> SSHResult:
@@ -89,8 +111,7 @@ def run_remote_script(node, password: str, script: str) -> SSHResult:
             stdin, stdout, stderr = client.exec_command("bash -s --", timeout=30)
             stdin.write(script)
             stdin.channel.shutdown_write()
-            status = stdout.channel.recv_exit_status()
-            output = (stdout.read() + stderr.read()).decode("utf-8", errors="replace")[-20000:]
+            status, output = _collect_channel(stdout.channel, timeout=120)
         finally:
             client.close()
         return SSHResult(node.hostname, endpoint, status == 0, output, fingerprint)

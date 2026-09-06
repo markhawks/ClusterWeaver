@@ -68,3 +68,16 @@ class StepExecutionRecord(Base):
     executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     project: Mapped[ProjectRecord] = relationship(back_populates="step_executions")
     node: Mapped[NodeRecord] = relationship(back_populates="step_executions")
+
+
+class UserRecord(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(32), default="user", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow)
+    theme: Mapped[str] = mapped_column(String(16), default="dark")

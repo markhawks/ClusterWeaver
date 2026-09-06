@@ -17,9 +17,16 @@ class Config:
     PORT = int(os.environ.get("CLUSTERWEAVER_PORT", "5000"))
     DEBUG = os.environ.get("CLUSTERWEAVER_DEBUG", "0").lower() in {"1", "true", "yes"}
     SSH_BOOTSTRAP_PASSWORD = os.environ.get("CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD", "")
+    LOGIN_USERNAME = os.environ.get("CLUSTERWEAVER_LOGIN_USERNAME", "admin")
+    LOGIN_PASSWORD = os.environ.get("CLUSTERWEAVER_LOGIN_PASSWORD", "changeme")
+    LOGIN_DISABLED = False
+    DEFAULT_THEME = "dark"
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
     WTF_CSRF_ENABLED = True
 
 
 class TestConfig(Config):
     TESTING = True
+    LOGIN_DISABLED = True
     WTF_CSRF_ENABLED = False

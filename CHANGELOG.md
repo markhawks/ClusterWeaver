@@ -6,6 +6,26 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-06
+
+### Added
+
+- Added the Configuration page with self-service password changes and administrator-only user management.
+- User management now shows and records the date and time of the latest password change.
+- Added a per-user light/soft-dark theme selector, with the grey dark theme as default, vertically centred login, and theme-aware transparent logo assets.
+- Improved login description contrast by rendering secondary text white with the dark theme.
+- Improved dark-theme contrast globally and increased project workflow density so steps use the available page more efficiently.
+- Reorganized navigation with Home and Project links; the login page no longer exposes the navigation, Changelog, or application-details dialog.
+- Added role-based access control: read-only `user`, cluster-managing `clusteradmin`, and unrestricted `administrator`.
+- The ClusterWeaver logo now opens version, author, GitHub and runtime component details; the Changelog link no longer carries the version label.
+- Added database-backed login with project branding, protected logout, and initial `admin` / `changeme` bootstrap credentials.
+
+### Changed
+
+- Node hostnames are limited to 30 characters.
+- SSH command collection drains stdout and stderr concurrently with bounded output and a hard execution timeout.
+- Gunicorn requirement moved to the maintained 26.x release line.
+
 ## [0.1.2] - 2026-09-04
 
 ### Added

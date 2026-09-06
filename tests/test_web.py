@@ -1,7 +1,95 @@
 from clusterweaver.persistence import db
-from clusterweaver.persistence.models import NodeRecord, ProjectRecord, StepExecutionRecord
+from clusterweaver import create_app
+from clusterweaver.persistence.database import Base
+from clusterweaver.persistence.models import NodeRecord, ProjectRecord, StepExecutionRecord, UserRecord
+from config import TestConfig
 import subprocess
 from types import SimpleNamespace
+from werkzeug.security import generate_password_hash
+
+
+def test_login_protects_application_and_shows_project_identity(tmp_path):
+    application = create_app(
+        TestConfig,
+        LOGIN_DISABLED=False,
+        LOGIN_USERNAME="admin",
+        LOGIN_PASSWORD="strong-test-password",
+        SECRET_KEY="login-test-secret",
+        DATABASE_URL=f"sqlite:///{tmp_path / 'login.db'}",
+        PROJECTS_ROOT=tmp_path / "projects",
+    )
+    with application.app_context():
+        Base.metadata.create_all(db.engine)
+    login_client = application.test_client()
+    protected = login_client.get("/")
+    assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
+    page = login_client.get("/login")
+    assert b"ClusterWeaver project logo" in page.data
+    assert b"Version 0.1.3" in page.data
+    assert b"remotely executes controlled workflows" in page.data
+    assert b'<html lang="en" data-bs-theme="dark">' in page.data
+    assert b'<body class="login-page">' in page.data
+    stylesheet = login_client.get("/static/css/app.css")
+    assert b'.login-page .text-secondary { color: #fff !important; }' in stylesheet.data
+    assert b'.workflow-description p { color: #fff !important; }' in stylesheet.data
+    assert b'.workflow-run-summary { min-height: 7rem; }' in stylesheet.data
+    assert b'<nav class="navbar' not in page.data
+    assert b"Changelog" not in page.data and b"About ClusterWeaver" not in page.data
+    rejected = login_client.post("/login", data={"username": "admin", "password": "wrong"})
+    assert b"Invalid username or password" in rejected.data
+    accepted = login_client.post("/login?next=/", data={"username": "admin", "password": "strong-test-password"})
+    assert accepted.status_code == 302 and accepted.headers["Location"] == "/"
+    assert login_client.get("/").status_code == 200
+    assert login_client.post("/logout").status_code == 302
+    assert login_client.get("/").status_code == 302
+
+
+def test_role_permissions_and_user_configuration(tmp_path):
+    application = create_app(
+        TestConfig, LOGIN_DISABLED=False, SECRET_KEY="role-test-secret",
+        DATABASE_URL=f"sqlite:///{tmp_path / 'roles.db'}", PROJECTS_ROOT=tmp_path / "projects",
+    )
+    with application.app_context():
+        Base.metadata.create_all(db.engine)
+        db.session.add_all([
+            UserRecord(username="admin", password_hash=generate_password_hash("administrator-pass"), role="administrator"),
+            UserRecord(username="viewer", password_hash=generate_password_hash("read-only-password"), role="user"),
+            UserRecord(username="cluster", password_hash=generate_password_hash("cluster-admin-pass"), role="clusteradmin"),
+        ])
+        db.session.commit()
+
+    client = application.test_client()
+    client.post("/login", data={"username": "viewer", "password": "read-only-password"})
+    assert client.get("/").status_code == 200
+    assert client.get("/configuration").status_code == 200
+    assert b"available only to administrators" in client.get("/configuration").data
+    assert client.get("/projects/new").status_code == 403
+    assert client.post("/projects/new", data={}).status_code == 403
+    assert client.post("/configuration/users", data={}).status_code == 403
+
+    client.post("/logout")
+    client.post("/login", data={"username": "cluster", "password": "cluster-admin-pass"})
+    assert client.get("/projects/new").status_code == 200
+    assert client.post("/configuration/users", data={}).status_code == 403
+
+    client.post("/logout")
+    client.post("/login", data={"username": "admin", "password": "administrator-pass"})
+    configuration = client.get("/configuration")
+    assert configuration.status_code == 200
+    assert b"Create user" in configuration.data and b"Access roles" in configuration.data
+    assert b"Password last changed" in configuration.data
+    assert b"Soft dark grey" in configuration.data
+    themed = client.post("/configuration/theme", data={"theme-theme": "light"}, follow_redirects=True)
+    assert b"Interface theme updated" in themed.data
+    assert b'data-bs-theme="light"' in themed.data
+    created = client.post("/configuration/users", data={
+        "create-username": "operator", "create-password": "operator-password",
+        "create-confirm_password": "operator-password", "create-role": "clusteradmin",
+    }, follow_redirects=True)
+    assert b"User operator created" in created.data
+    with application.app_context():
+        operator = db.session.query(UserRecord).filter_by(username="operator").one()
+        assert operator.password_changed_at is not None
 
 
 def mark_step_00_complete(app, through="00c"):
@@ -41,8 +129,12 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Last modified" in response.data
     assert b"clusterweaver-sphere-logo.png" in response.data
     assert b"cw-icon-home" in response.data
+    assert b"cw-icon-projects" in response.data
+    assert b'<span>Home</span>' in response.data and b'<span>Project</span>' in response.data
     assert b"cw-icon-notebook" in response.data
-    assert b"Changelog" in response.data and b"v0.1.2" in response.data
+    assert b"Changelog" in response.data and b"Changelog <small" not in response.data
+    assert b"Configuration" in response.data and b"About ClusterWeaver" in response.data
+    assert b"GitHub project page" in response.data and b"Gunicorn" in response.data
     assert b'rel="icon"' in response.data
     assert b"Generated workflow" in response.data
     assert b"Step 00" in response.data
@@ -130,6 +222,23 @@ def test_invalid_ip_is_rejected(client):
     })
     response = client.post(f"{response.headers['Location']}/nodes/new", data={"hostname": "node01", "management_ip": "999.1.1.1"})
     assert b"Enter an IPv4 address with subnet prefix" in response.data
+
+
+def test_hostname_is_limited_to_30_characters(client):
+    project = client.post("/projects/new", data={
+        "name": "Hostname Limit", "customer": "Example", "rhel_major": "10", "rhel_minor": "2",
+        "platform_type": "virtual", "hypervisor": "kvm", "node_count": "1",
+    })
+    response = client.post(f"{project.headers['Location']}/nodes/new", data={
+        "hostname": "n" * 31, "nodename": "node01lanc", "management_ip": "192.168.124.11/24",
+        "management_gateway": "192.168.124.1", "primary_interface": "enp1s0", "ssh_port": "22",
+    })
+    assert b"Field cannot be longer than 30 characters" in response.data
+    injected = client.post(f"{project.headers['Location']}/nodes/new", data={
+        "hostname": "node$(touch-pwned)", "nodename": "node01lanc", "management_ip": "192.168.124.11/24",
+        "management_gateway": "192.168.124.1", "primary_interface": "enp1s0", "ssh_port": "22",
+    })
+    assert b"letters, numbers, or hyphens" in injected.data
 
 
 def test_management_gateway_is_required_and_must_match_subnet(client):

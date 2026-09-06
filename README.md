@@ -8,7 +8,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.2**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.3**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -39,9 +39,23 @@ Set a private session key outside source control:
 
 ```bash
 export CLUSTERWEAVER_SECRET_KEY='replace-with-a-random-value'
+export CLUSTERWEAVER_LOGIN_USERNAME='admin'
+export CLUSTERWEAVER_LOGIN_PASSWORD='changeme' # first administrator bootstrap only
 ```
 
 The checked-in default is suitable only for local development.
+
+The first start creates the default administrator `admin` with password `changeme` when the users table is empty. Change this password immediately from **Configuration**. Bootstrap credentials are ignored after the first user exists; passwords are stored only as salted hashes in SQLite.
+
+## Authentication, roles, and appearance
+
+ClusterWeaver requires authentication for every project page. The Configuration page provides personal password and theme settings plus administrator-only account management.
+
+- `user`: read-only access to projects, nodes, generated scripts, and execution results.
+- `clusteradmin`: can create and manage clusters and execute remote workflows, but cannot create, edit, or delete users.
+- `administrator`: unrestricted cluster and user management.
+
+Each account records the time its password was last changed. The soft dark-grey interface is the default; users can select the light theme independently. The login form is vertically centred, and the transparent PNG logo adapts to both themes while retaining its white circular interior. Clicking the logo after login shows the ClusterWeaver version, author, GitHub project, and runtime component versions.
 
 ## Database initialization and migration
 
@@ -120,6 +134,8 @@ data/projects/<project-slug>/project.yaml
 Configuration can be overridden with:
 
 - `CLUSTERWEAVER_SECRET_KEY`
+- `CLUSTERWEAVER_LOGIN_USERNAME` (initial administrator bootstrap; defaults to `admin`)
+- `CLUSTERWEAVER_LOGIN_PASSWORD` (initial administrator bootstrap; defaults to `changeme`, is stored as a password hash, and is ignored after the first user exists)
 - `CLUSTERWEAVER_DATABASE_URL`
 - `CLUSTERWEAVER_PROJECTS_ROOT`
 - `CLUSTERWEAVER_HOST` (defaults to `127.0.0.1`)

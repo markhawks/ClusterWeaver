@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_form_helpers.html" import render_field %}
+{% block title %}Sign in · ClusterWeaver{% endblock %}
+{% block content %}
+<div class="login-shell py-3 py-lg-5"><div class="card shadow login-card mx-auto"><div class="row g-0 align-items-stretch">
+  <div class="col-lg-6 login-brand-panel d-flex flex-column align-items-center justify-content-center text-center p-4 p-xl-5">
+    <img class="login-project-logo" src="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}" alt="ClusterWeaver project logo">
+    <h1 class="h2 mt-4 mb-2">ClusterWeaver</h1><p class="text-secondary mb-2">Linux High Availability Cluster Builder &amp; Lifecycle Manager</p><span class="badge text-bg-dark">Version {{ clusterweaver_version }}</span>
+  </div>
+  <div class="col-lg-6 p-4 p-xl-5 d-flex flex-column justify-content-center"><h2 class="h4 mb-3">Sign in</h2><p class="text-secondary">ClusterWeaver prepares, validates, and remotely executes controlled workflows for RHEL high-availability cluster nodes, including SSH bootstrap, network configuration, and pre-flight checks.</p>
+    {% if not credentials_configured %}<div class="alert alert-danger">Login credentials are not configured on this server. Set them in the protected ClusterWeaver environment file.</div>{% endif %}
+    <form method="post">{{ form.hidden_tag() }}{{ render_field(form.username) }}{{ render_field(form.password) }}{{ form.submit(class="btn btn-primary w-100", disabled=(not credentials_configured)) }}</form>
+  </div>
+</div></div></div>
+{% endblock %}

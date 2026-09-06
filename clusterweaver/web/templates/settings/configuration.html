@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Configuration · ClusterWeaver{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4"><span class="configuration-title-icon">{{ icon('settings') }}</span><div><h1 class="h2 mb-0">Configuration</h1><p class="text-body-secondary mb-0">Account, password and access-role management.</p></div></div>
+<div class="row g-4">
+  <div class="col-xl-5"><section class="card shadow-sm h-100"><div class="card-body">
+    <h2 class="h5">Your account</h2><p class="text-body-secondary">Signed in as <strong>{{ g.current_user.username }}</strong> · <span class="badge text-bg-secondary">{{ g.current_user.role }}</span></p>
+    <form method="post" action="{{ url_for('settings.change_password') }}">{{ password_form.hidden_tag() }}
+      {% for field in [password_form.current_password, password_form.new_password, password_form.confirm_password] %}<div class="mb-3">{{ field.label(class='form-label') }}{{ field(class='form-control') }}{% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}</div>{% endfor %}
+      {{ password_form.submit(class='btn btn-primary') }}
+    </form>
+  </div></section></div>
+  <div class="col-xl-7"><section class="card shadow-sm h-100"><div class="card-body">
+    <h2 class="h5">Access roles</h2><dl class="row mb-0">
+      <dt class="col-sm-3">User</dt><dd class="col-sm-9">Read-only access to projects, nodes, scripts and execution results.</dd>
+      <dt class="col-sm-3">Cluster admin</dt><dd class="col-sm-9">Creates and manages projects, nodes and remote cluster workflows, but cannot manage users.</dd>
+      <dt class="col-sm-3">Administrator</dt><dd class="col-sm-9">Full access, including user creation, modification and deletion.</dd>
+    </dl>
+  </div></section></div>
+</div>
+<section class="card shadow-sm mt-4"><div class="card-body"><h2 class="h5">Appearance</h2><p class="text-body-secondary">Choose your personal interface theme. Soft dark grey is used by default.</p><form class="row g-3 align-items-end" method="post" action="{{ url_for('settings.change_theme') }}">{{ theme_form.hidden_tag() }}<div class="col-md-5">{{ theme_form.theme.label(class='form-label') }}{{ theme_form.theme(class='form-select') }}</div><div class="col-md-auto">{{ theme_form.submit(class='btn btn-primary') }}</div></form></div></section>
+{% if g.current_user.role == 'administrator' %}
+<section class="card shadow-sm mt-4"><div class="card-body"><h2 class="h5">Create user</h2>
+  <form class="row g-3 align-items-end" method="post" action="{{ url_for('settings.create_user') }}">{{ create_form.hidden_tag() }}
+    <div class="col-md-3">{{ create_form.username.label(class='form-label') }}{{ create_form.username(class='form-control') }}</div><div class="col-md-3">{{ create_form.password.label(class='form-label') }}{{ create_form.password(class='form-control') }}</div><div class="col-md-3">{{ create_form.confirm_password.label(class='form-label') }}{{ create_form.confirm_password(class='form-control') }}</div><div class="col-md-2">{{ create_form.role.label(class='form-label') }}{{ create_form.role(class='form-select') }}</div><div class="col-md-1">{{ create_form.submit(class='btn btn-primary') }}</div>
+  </form>
+</div></section>
+<section class="mt-4"><h2 class="h5">Users</h2><div class="vstack gap-3">
+{% for user in users %}{% set update_form = update_forms[user.id] %}{% set delete_form = delete_forms[user.id] %}<div class="card shadow-sm"><div class="card-body"><div class="row g-3 align-items-end">
+  <div class="col-md-2"><div class="form-label">Username</div><strong>{{ user.username }}</strong>{% if user.id == g.current_user.id %} <span class="badge text-bg-primary">you</span>{% endif %}<div class="small text-body-secondary">Created {{ user.created_at|local_datetime }}</div></div>
+  <div class="col-md-2"><div class="form-label">Password last changed</div><span>{{ (user.password_changed_at or user.created_at)|local_datetime }}</span></div>
+  <form class="col-md-6 row g-3 align-items-end" method="post" action="{{ url_for('settings.update_user', user_id=user.id) }}">{{ update_form.hidden_tag() }}<div class="col-md-5">{{ update_form.role.label(class='form-label') }}{{ update_form.role(class='form-select') }}</div><div class="col-md-5">{{ update_form.password.label(class='form-label') }}{{ update_form.password(class='form-control') }}</div><div class="col-md-2">{{ update_form.submit(class='btn btn-outline-primary') }}</div></form>
+  <form class="col-md-2 text-end" method="post" action="{{ url_for('settings.delete_user', user_id=user.id) }}">{{ delete_form.hidden_tag() }}<button class="btn btn-outline-danger" type="submit" {% if user.id == g.current_user.id %}disabled{% endif %}>Delete</button></form>
+</div></div></div>{% endfor %}
+</div></section>
+{% else %}<div class="alert alert-info mt-4">User account management is available only to administrators.</div>{% endif %}
+{% endblock %}

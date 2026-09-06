@@ -9,6 +9,7 @@ from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
 from clusterweaver.core.services.git import GitService
 from clusterweaver.core.services.network_config import configure_node_network
+from clusterweaver.core.services.ssh_bootstrap import _collect_channel
 
 
 def sample_project():
@@ -27,6 +28,38 @@ def network_node():
         management_ip="192.168.124.11/24", management_gateway="192.168.124.1", primary_interface="enp1s0",
         cluster_ip="192.168.200.11/24", cluster_gateway="192.168.200.1", secondary_interface="enp7s0",
     )
+
+
+def test_ssh_channel_drains_stdout_and_stderr_before_exit_status():
+    class FakeChannel:
+        def __init__(self):
+            self.stdout = [b"standard output\n"]
+            self.stderr = [b"standard error\n"]
+
+        def recv_ready(self):
+            return bool(self.stdout)
+
+        def recv(self, _size):
+            return self.stdout.pop(0)
+
+        def recv_stderr_ready(self):
+            return bool(self.stderr)
+
+        def recv_stderr(self, _size):
+            return self.stderr.pop(0)
+
+        def exit_status_ready(self):
+            return not self.stdout and not self.stderr
+
+        def recv_exit_status(self):
+            return 0
+
+        def close(self):
+            raise AssertionError("channel should not time out")
+
+    status, output = _collect_channel(FakeChannel(), timeout=1)
+    assert status == 0
+    assert "standard output" in output and "standard error" in output
 
 
 def test_network_apply_is_noop_when_configuration_is_compliant(monkeypatch):

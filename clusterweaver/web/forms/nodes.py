@@ -1,4 +1,5 @@
 from ipaddress import ip_address
+import re
 
 from flask_wtf import FlaskForm
 from wtforms import IntegerField, StringField, SubmitField
@@ -21,8 +22,14 @@ def valid_cidr(_form, field) -> None:
         raise ValidationError(str(exc)) from exc
 
 
+def valid_short_hostname(_form, field) -> None:
+    value = field.data.strip() if field.data else ""
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,28}[A-Za-z0-9])?", value):
+        raise ValidationError("Use 1–30 letters, numbers, or hyphens; a hyphen cannot be first or last.")
+
+
 class NodeForm(FlaskForm):
-    hostname = StringField("Hostname", validators=[DataRequired(), Length(max=253)])
+    hostname = StringField("Hostname", validators=[DataRequired(), Length(max=30), valid_short_hostname])
     nodename = StringField("Cluster node name", validators=[DataRequired(), Length(max=253)])
     fqdn = StringField("FQDN", validators=[Optional(), Length(max=253)])
     site = StringField(
