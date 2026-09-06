@@ -84,6 +84,7 @@ def create_app(config_object=Config, **overrides) -> Flask:
         if user.role == "user":
             read_only_endpoints = {
                 "projects.index", "projects.detail", "projects.changelog",
+                "projects.export_project",
                 "projects.download_precheck", "projects.download_network_check",
                 "projects.download_hosts_update", "projects.download_network_connectivity",
                 "settings.configuration", "settings.change_password", "auth.logout",

@@ -2,7 +2,7 @@
 set -o errexit
 set -o nounset
 set -o pipefail
-repository="https://github.com/markhawks/ClusterWeaver.git"; target_ref="${1:-v0.1.5}"
+repository="https://github.com/markhawks/ClusterWeaver.git"; target_ref="${1:-v0.1.6}"
 if [[ ${EUID} -ne 0 ]]; then echo "Run this updater as root." >&2; exit 1; fi
 dnf install -y git
 checkout_dir="$(mktemp -d)"; trap 'rm -rf "${checkout_dir}"' EXIT

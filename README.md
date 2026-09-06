@@ -8,7 +8,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.5**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.6**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -136,6 +136,10 @@ In production, each project is written to:
 ```
 
 `data/projects/` is initialized as a separate local Git repository. Meaningful YAML changes create commits; SQLite databases, logs, and secret YAML files are ignored. Generated workflow scripts are displayed for review. SSH discovery and explicitly confirmed SSH key bootstrap actions are executed remotely from the project page; passwords are used only in memory and are never written to project data or logs.
+
+## Portable projects
+
+Each project can be exported from the Projects table as a portable `.cwp` archive and imported into another ClusterWeaver instance. Imports always create a new project with a new UUID and reset all remote execution state. The archive contains the editable project definition, generated workflow scripts, format metadata, and SHA-256 checksums; it excludes passwords, SSH keys, application secrets, execution logs, and step results.
 
 Configuration can be overridden with:
 

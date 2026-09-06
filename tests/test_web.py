@@ -4,6 +4,7 @@ from clusterweaver.persistence.database import Base
 from clusterweaver.persistence.models import NodeRecord, ProjectRecord, StepExecutionRecord, UserRecord
 from config import TestConfig
 import subprocess
+from io import BytesIO
 from types import SimpleNamespace
 from werkzeug.security import generate_password_hash
 
@@ -25,7 +26,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
     page = login_client.get("/login")
     assert b"ClusterWeaver project logo" in page.data
-    assert b"Version 0.1.5" in page.data
+    assert b"Version 0.1.6" in page.data
     assert b"remotely executes controlled workflows" in page.data
     assert b'<html lang="en" data-bs-theme="dark">' in page.data
     assert b'<body class="login-page">' in page.data
@@ -167,6 +168,55 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b'role="link"' in project_list.data
     history = subprocess.run(["git", "log", "--oneline"], cwd=root, check=True, capture_output=True, text=True)
     assert "Create DB2 PROD project" in history.stdout
+
+
+def test_project_export_and_import_create_safe_editable_copy(client, app):
+    response = client.post("/projects/new", data={
+        "name": "Portable HA", "customer": "Example", "description": "Move between environments",
+        "rhel_major": "10", "rhel_minor": "2", "platform_type": "virtual", "hypervisor": "kvm", "node_count": "2",
+    })
+    project_url = response.headers["Location"]
+    client.post(f"{project_url}/nodes/new", data={
+        "hostname": "node01", "nodename": "node01", "fqdn": "node01.example.test", "site": "Lab",
+        "management_ip": "192.168.124.11/24", "management_gateway": "192.168.124.1",
+        "cluster_ip": "192.168.200.11/24", "cluster_gateway": "192.168.200.1",
+        "primary_interface": "enp1s0", "secondary_interface": "enp7s0", "bootstrap_ip": "192.168.124.101", "ssh_port": "22",
+    })
+    project_id = int(project_url.rsplit("/", 1)[-1])
+    with app.app_context():
+        node = db.session.query(NodeRecord).filter_by(project_id=project_id).one()
+        db.session.add(StepExecutionRecord(project_id=project_id, node_id=node.id, step="00a", status="pass", output="sensitive log"))
+        db.session.commit()
+    exported = client.get(f"/projects/{project_id}/export.cwp")
+    assert exported.status_code == 200
+    assert exported.headers["Content-Disposition"].endswith('filename=portable-ha.cwp')
+    assert b"sensitive log" not in exported.data
+    imported = client.post(
+        "/projects/import", data={"archive": (BytesIO(exported.data), "portable-ha.cwp")},
+        content_type="multipart/form-data", follow_redirects=True,
+    )
+    assert imported.status_code == 200
+    assert b"Portable HA (Imported)" in imported.data
+    assert b"Remote execution state was reset" in imported.data
+    with app.app_context():
+        projects = db.session.query(ProjectRecord).order_by(ProjectRecord.id).all()
+        assert len(projects) == 2
+        assert projects[0].uuid != projects[1].uuid
+        assert projects[1].slug == "portable-ha-2"
+        assert len(projects[1].nodes) == 1
+        assert projects[1].nodes[0].management_ip == "192.168.124.11/24"
+        assert db.session.query(StepExecutionRecord).filter_by(project_id=projects[1].id).count() == 0
+    index = client.get("/")
+    assert b"Import project" in index.data
+    assert b"cw-icon-import" in index.data and b"cw-icon-export" in index.data
+
+
+def test_project_import_rejects_modified_or_invalid_archive(client):
+    response = client.post("/projects/import", data={
+        "archive": (BytesIO(b"not a tar archive"), "broken.cwp"),
+    }, content_type="multipart/form-data", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Project import failed" in response.data
 
 
 def test_node_creation_updates_generated_script(client, app):

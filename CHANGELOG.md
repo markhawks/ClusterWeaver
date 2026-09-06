@@ -6,6 +6,14 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-07
+
+### Added
+
+- Added portable `.cwp` project export from every project row and project import from the Projects page.
+- Added archive manifests, generated workflow scripts, per-file SHA-256 verification, schema validation, strict file and size limits, and safe streaming import without filesystem extraction.
+- Imported projects receive new identifiers and reset all remote execution state; credentials, SSH keys, application secrets, logs, and execution results are excluded.
+
 ## [0.1.5] - 2026-09-06
 
 ### Changed

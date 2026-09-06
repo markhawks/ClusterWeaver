@@ -1,4 +1,5 @@
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileRequired
 from wtforms import IntegerField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
 
@@ -45,3 +46,8 @@ class ProjectForm(FlaskForm):
     def validate_hypervisor(self, field) -> None:
         if self.platform_type.data == "virtual" and not field.data:
             raise ValidationError("Select an hypervisor for a virtual project.")
+
+
+class ProjectImportForm(FlaskForm):
+    archive = FileField("ClusterWeaver project archive", validators=[FileRequired()])
+    submit = SubmitField("Import project")

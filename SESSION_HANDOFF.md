@@ -6,7 +6,7 @@ Updated: 2026-09-06 (Europe/Rome)
 
 - Working directory: `/var/www/html/ClusterWeaver`
 - Git branch: `main`
-- Current released version: `0.1.5`
+- Current released version: `0.1.6`
 - Application version source: `clusterweaver/version.py`
 - Service: `clusterweaver-control`
 - Database migration head: `0010_user_theme`
@@ -112,6 +112,12 @@ Expected test result: `44 passed`.
 - Added `setup/offline-container/` for disconnected RHEL 10.2 x86_64 systems: multi-stage UBI 10 image, OCI archive builder, Podman Quadlet, offline install/update/uninstall/verify scripts, checksums, inventories, and Kickstart instructions.
 - Built `dist/clusterweaver-0.1.4-linux-amd64-offline.tar.gz` locally; `dist/` is ignored by Git.
 - Local Podman test container `clusterweaver-offline-test` listens on `127.0.0.1:5051`, persists under `/var/lib/clusterweaver-podman-test/data`, and passed health, login, project creation, YAML/Git persistence, Configuration, and migration tests.
+
+## Work released in 0.1.6
+
+- Added checksum-verified `.cwp` export/import for moving editable project configurations between isolated ClusterWeaver instances.
+- Export packages include project YAML, generated steps 01–04, format metadata, and checksums; secrets, keys, logs, and execution state are excluded.
+- Imports always create a new project identity and require Step 00 to be run again.
 
 ## Work released in 0.1.5
 

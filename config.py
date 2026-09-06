@@ -24,6 +24,8 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     WTF_CSRF_ENABLED = True
+    # Leave room for multipart framing around the service-level 8 MiB archive limit.
+    MAX_CONTENT_LENGTH = 9 * 1024 * 1024
 
 
 class TestConfig(Config):
