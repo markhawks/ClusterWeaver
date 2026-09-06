@@ -1,0 +1,9 @@
+.git
+.venv
+.pytest_cache
+data
+dist
+**/__pycache__
+*.pyc
+SESSION_HANDOFF.md
+

@@ -5,7 +5,7 @@ from clusterweaver.version import __version__
 
 
 def test_application_version():
-    assert __version__ == "0.1.3"
+    assert __version__ == "0.1.4"
 
 
 @pytest.mark.parametrize("major", [7, 9, 10])

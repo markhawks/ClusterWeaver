@@ -13,3 +13,4 @@ data/projects/
 secrets.yml
 secrets.yaml
 instance/
+dist/

@@ -6,6 +6,13 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-06
+
+### Added
+
+- Added automated RHEL bootstrap, local installation, safe update, and deployment health-check scripts under `setup/`.
+- Added a transferable RHEL 10 x86_64 OCI bundle workflow with UBI 10, Podman Quadlet, persistent SELinux-labelled data, offline install/update verification, checksums, dependency inventory, and Kickstart guidance.
+
 ## [0.1.3] - 2026-09-06
 
 ### Added

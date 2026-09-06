@@ -8,7 +8,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.3**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.4**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -28,6 +28,12 @@ sudo dnf install git python3-pip
 ```
 
 ## Setup
+
+For an automated RHEL installation, use the scripts documented in [`setup/README.md`](setup/README.md). They cover a fresh GitHub bootstrap, local-checkout installation, safe updates, database migration, systemd, optional firewalld configuration, and health verification.
+
+For disconnected RHEL 10.2 x86_64 servers, [`setup/offline-container/README.md`](setup/offline-container/README.md) documents the Podman OCI bundle. The target uses only packages delivered by Satellite and the transferred archive; GitHub, PyPI, and external registries are not contacted during installation.
+
+Manual development setup:
 
 ```bash
 python3 -m venv .venv
