@@ -1,15 +1,19 @@
 # ClusterWeaver session handoff
 
-Updated: 2026-09-06 (Europe/Rome)
+Updated: 2026-09-07 (Europe/Rome)
 
 ## Repository state
 
 - Working directory: `/var/www/html/ClusterWeaver`
 - Git branch: `main`
 - Current released version: `0.1.6`
+- Release tag commit: `fcb88dc888b885df6f1849869457e31cde73f37a`
+- Current `main` commit: `cfc48e8` (English/Italian README documentation update after the release tag)
+- GitHub release: `https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.6`
 - Application version source: `clusterweaver/version.py`
 - Service: `clusterweaver-control`
 - Database migration head: `0010_user_theme`
+- Native service layout: application `/opt/clusterweaver/app`, venv `/opt/clusterweaver/venv`, configuration `/etc/clusterweaver`, state `/var/lib/clusterweaver`
 
 ## Work released in 0.1.2
 
@@ -76,11 +80,12 @@ Run before handoff:
 ```bash
 .venv/bin/pytest -q
 git diff --check
-.venv/bin/alembic current
 systemctl is-active clusterweaver-control
+curl --fail --silent http://127.0.0.1:5000/login
+podman inspect clusterweaver-offline-test-016 --format '{{.State.Health.Status}}'
 ```
 
-Expected test result: `44 passed`.
+Result: `46 passed`; native service active on version 0.1.6; isolated 0.1.6 container healthy.
 
 ## Important operational notes
 
@@ -88,21 +93,32 @@ Expected test result: `44 passed`.
 - Initial application bootstrap credentials may be supplied through the protected environment file and must not reuse node root credentials. They are ignored once an account exists.
 - Older Step 00 actions performed before migration `0007` have no execution records. Those projects must execute Step 00 again before Step 01 becomes available.
 - Peer SSH trust is idempotent: existing Ed25519 keys are reused and exact authorized keys are not duplicated.
-- Release `0.1.3` adds authentication, role-based authorization, account/password management, security fixes, updated Gunicorn support, theme selection, accessible dark styling, responsive navigation, and transparent branding.
+- `.cwp` imports intentionally receive a new project UUID/ID and no Step execution records; Step 00 must be executed again on the destination environment.
+- `.cwp` exports never contain passwords, private SSH keys, application secrets, execution output, or workflow status.
+- The main GitHub `README.md` is English; `README_IT.md` is the complete Italian version. Both contain language navigation.
+- The 0.1.6 offline bundle is `dist/clusterweaver-0.1.6-linux-amd64-offline.tar.gz` with the adjacent `.sha256` file; both are attached to the GitHub release.
 
 ## Suggested next session start
 
 1. Read this file and `CHANGELOG.md`.
 2. Check `git status --short --branch` and the latest commit.
-3. Confirm migration state with `.venv/bin/alembic current`.
+3. Confirm native migration state with `source /etc/clusterweaver/clusterweaver.env` followed by `/opt/clusterweaver/venv/bin/alembic -c /opt/clusterweaver/app/alembic.ini current` from `/opt/clusterweaver/app`.
 4. Confirm the service with `systemctl is-active clusterweaver-control`.
-5. Run `.venv/bin/pytest -q` before the next change.
+5. Run `.venv/bin/pytest -q` from the development checkout before the next change; expected result is 46 passed.
 
-## Likely next work
+## Next-session priority: remote Podman test
 
-- Continue the generated workflow after Step 04.
-- Define the next generated workflow step after Step 04.
-- Exercise Step 00 and Steps 01–04 end-to-end on the two-node RHEL 10.2 KVM test cluster.
+1. Download both 0.1.6 release assets on a connected workstation and transfer them to the RHEL 10.2 x86_64 server through the approved channel.
+2. On the remote server run `sha256sum -c clusterweaver-0.1.6-linux-amd64-offline.tar.gz.sha256`, extract the archive, then run `sudo ./install-offline.sh` from the extracted directory.
+3. Verify `systemctl status clusterweaver.service`, `podman healthcheck run clusterweaver`, port TCP/5000, SELinux enforcing mode, and login with initial `admin` / `changeme`; change the password immediately.
+4. Export a populated project as `.cwp` from the local instance, transfer it to the remote instance, import it, and confirm:
+   - the imported project name ends in `(Imported)`;
+   - node/network values and generated scripts are present;
+   - the imported project has a new identity;
+   - Remote Ready is grey and Step 00 has no inherited execution results;
+   - project fields can be changed for the customer environment.
+5. Export the adjusted project from the remote instance and import it back locally to validate the reverse path.
+6. After portability testing, continue the generated workflow after Step 04 and exercise Steps 00–04 end-to-end on the two-node RHEL 10.2 KVM test cluster.
 
 ## Work released in 0.1.4
 
@@ -118,6 +134,10 @@ Expected test result: `44 passed`.
 - Added checksum-verified `.cwp` export/import for moving editable project configurations between isolated ClusterWeaver instances.
 - Export packages include project YAML, generated steps 01–04, format metadata, and checksums; secrets, keys, logs, and execution state are excluded.
 - Imports always create a new project identity and require Step 00 to be run again.
+- Import accepts only the declared archive members, verifies all SHA-256 checksums and schema fields, limits compressed/member/expanded sizes, and streams files without filesystem extraction.
+- `user` can export in read-only mode; `clusteradmin` and `administrator` can export and import.
+- Release validation completed with 46 tests, a native 0.1.6 installation, checksum verification, and a fresh healthy Podman container on `127.0.0.1:5054`.
+- Published English `README.md` and Italian `README_IT.md`; the documentation-only commit after the release is `cfc48e8` on `main`.
 
 ## Work released in 0.1.5
 
