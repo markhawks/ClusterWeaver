@@ -6,7 +6,7 @@ Updated: 2026-09-06 (Europe/Rome)
 
 - Working directory: `/var/www/html/ClusterWeaver`
 - Git branch: `main`
-- Current released version: `0.1.4`
+- Current released version: `0.1.5`
 - Application version source: `clusterweaver/version.py`
 - Service: `clusterweaver-control`
 - Database migration head: `0010_user_theme`
@@ -112,3 +112,10 @@ Expected test result: `44 passed`.
 - Added `setup/offline-container/` for disconnected RHEL 10.2 x86_64 systems: multi-stage UBI 10 image, OCI archive builder, Podman Quadlet, offline install/update/uninstall/verify scripts, checksums, inventories, and Kickstart instructions.
 - Built `dist/clusterweaver-0.1.4-linux-amd64-offline.tar.gz` locally; `dist/` is ignored by Git.
 - Local Podman test container `clusterweaver-offline-test` listens on `127.0.0.1:5051`, persists under `/var/lib/clusterweaver-podman-test/data`, and passed health, login, project creation, YAML/Git persistence, Configuration, and migration tests.
+
+## Work released in 0.1.5
+
+- Native production paths are `/opt/clusterweaver/app`, `/opt/clusterweaver/venv`, `/etc/clusterweaver`, and `/var/lib/clusterweaver`.
+- The installer accepts any source checkout, migrates the legacy `/var/www/html/ClusterWeaver/data` tree when needed, retains the old data, creates a closed SQLite backup, and preserves the previous deployed app.
+- Bootstrap and updater use temporary Git checkouts; the production application is no longer a Git working tree or web-root deployment.
+- systemd and all native health/migration tooling use the standard production paths.

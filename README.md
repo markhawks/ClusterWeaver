@@ -8,7 +8,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.4**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.5**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -70,7 +70,7 @@ source .venv/bin/activate
 alembic upgrade head
 ```
 
-SQLite is created at `data/clusterweaver.db`. This database is ignored by Git and is not the sole copy of project knowledge.
+Production SQLite state is stored under `/var/lib/clusterweaver/data`; development uses `data/clusterweaver.db`. Databases are ignored by Git and are not the sole copy of project knowledge.
 
 ## Start the development server
 
@@ -92,7 +92,7 @@ Then open `http://<vm-ip>:5000`. If `firewalld` is active, TCP port 5000 must al
 
 ## systemd service
 
-The installed `clusterweaver-control.service` uses Gunicorn, runs as the unprivileged `clusterweaver` account, starts at boot, and reads its private configuration from `/etc/clusterweaver/clusterweaver.env`.
+The installed `clusterweaver-control.service` runs `/opt/clusterweaver/app` with its virtual environment at `/opt/clusterweaver/venv`. Gunicorn runs as the unprivileged `clusterweaver` account, starts at boot, stores state in `/var/lib/clusterweaver`, and reads private configuration from `/etc/clusterweaver/clusterweaver.env`.
 
 It can be managed directly with systemd:
 
@@ -129,10 +129,10 @@ Tests use isolated temporary databases and project repositories; they do not con
 
 ## Runtime data
 
-Each project is written to:
+In production, each project is written to:
 
 ```text
-data/projects/<project-slug>/project.yaml
+/var/lib/clusterweaver/data/projects/<project-slug>/project.yaml
 ```
 
 `data/projects/` is initialized as a separate local Git repository. Meaningful YAML changes create commits; SQLite databases, logs, and secret YAML files are ignored. Generated workflow scripts are displayed for review. SSH discovery and explicitly confirmed SSH key bootstrap actions are executed remotely from the project page; passwords are used only in memory and are never written to project data or logs.

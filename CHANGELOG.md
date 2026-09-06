@@ -6,6 +6,14 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-06
+
+### Changed
+
+- Migrated native production layout from `/var/www/html/ClusterWeaver` to `/opt/clusterweaver/app`, `/opt/clusterweaver/venv`, `/etc/clusterweaver`, and `/var/lib/clusterweaver`.
+- Native installation now deploys from any source checkout, migrates legacy data non-destructively, backs up SQLite, preserves the previous application tree, and runs independently of a Git checkout.
+- Updated bootstrap, online updater, systemd hardening paths, health checks, README, Kickstart procedure, and offline container bundle for the standard filesystem layout.
+
 ## [0.1.4] - 2026-09-06
 
 ### Added

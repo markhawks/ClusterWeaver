@@ -8,7 +8,7 @@ The build host needs x86_64 Podman plus access to Red Hat UBI repositories and P
 
 ```bash
 ./setup/offline-container/build-offline-bundle.sh
-sha256sum -c dist/clusterweaver-0.1.4-linux-amd64-offline.tar.gz.sha256
+sha256sum -c dist/clusterweaver-0.1.5-linux-amd64-offline.tar.gz.sha256
 ```
 
 Transfer the `.tar.gz` and its `.sha256` file through the approved offline channel.
@@ -37,9 +37,9 @@ After first boot, copy the bundle to `/root`, then run:
 
 ```bash
 cd /root
-sha256sum -c clusterweaver-0.1.4-linux-amd64-offline.tar.gz.sha256
-tar -xzf clusterweaver-0.1.4-linux-amd64-offline.tar.gz
-cd clusterweaver-0.1.4-linux-amd64-offline
+sha256sum -c clusterweaver-0.1.5-linux-amd64-offline.tar.gz.sha256
+tar -xzf clusterweaver-0.1.5-linux-amd64-offline.tar.gz
+cd clusterweaver-0.1.5-linux-amd64-offline
 ./install-offline.sh
 ```
 

@@ -6,9 +6,9 @@ After=network.target
 Type=simple
 User=clusterweaver
 Group=clusterweaver
-WorkingDirectory=/var/www/html/ClusterWeaver
+WorkingDirectory=/opt/clusterweaver/app
 EnvironmentFile=/etc/clusterweaver/clusterweaver.env
-ExecStart=/var/www/html/ClusterWeaver/.venv/bin/gunicorn --no-control-socket --workers 2 --timeout 150 --graceful-timeout 30 --bind 0.0.0.0:5000 --access-logfile - --error-logfile - run:app
+ExecStart=/opt/clusterweaver/venv/bin/gunicorn --no-control-socket --workers 2 --timeout 150 --graceful-timeout 30 --bind 0.0.0.0:5000 --access-logfile - --error-logfile - run:app
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=on-failure
 RestartSec=3
@@ -17,7 +17,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/www/html/ClusterWeaver/data
+ReadWritePaths=/var/lib/clusterweaver
 
 [Install]
 WantedBy=multi-user.target

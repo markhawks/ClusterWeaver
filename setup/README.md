@@ -1,23 +1,23 @@
 # Automated setup
 
-These scripts install ClusterWeaver on RHEL or a compatible distribution. The supported application path is `/var/www/html/ClusterWeaver` and commands must run as root.
+These scripts install ClusterWeaver on RHEL or a compatible distribution using `/opt/clusterweaver` for application code, `/etc/clusterweaver` for configuration, and `/var/lib/clusterweaver` for state and backups. Commands must run as root.
 
 ## Complete installation from GitHub
 
 Download `bootstrap.sh` onto an empty server and run:
 
 ```bash
-curl --fail --location --output bootstrap.sh https://raw.githubusercontent.com/markhawks/ClusterWeaver/v0.1.4/setup/bootstrap.sh
+curl --fail --location --output bootstrap.sh https://raw.githubusercontent.com/markhawks/ClusterWeaver/v0.1.5/setup/bootstrap.sh
 chmod 755 bootstrap.sh
 sudo bash bootstrap.sh
 ```
 
-It installs Git, checks out release `v0.1.4`, and runs the complete installer. Override the release with `CLUSTERWEAVER_VERSION`, for example `CLUSTERWEAVER_VERSION=main sudo bash bootstrap.sh`. The destination must not already exist.
+It installs Git into the staging environment, checks out release `v0.1.5` in a temporary directory, deploys the application under `/opt`, and removes the temporary checkout. Override the release with `CLUSTERWEAVER_VERSION`.
 
 ## Installation from an existing checkout
 
 ```bash
-cd /var/www/html/ClusterWeaver
+cd /path/to/ClusterWeaver
 sudo ./setup/install.sh
 ```
 
@@ -39,22 +39,22 @@ The initial login for an empty database is `admin` / `changeme`. Change it immed
 
 ## Updates
 
-Update to current `main`:
+Update to the default release:
 
 ```bash
-sudo ./setup/update.sh
+sudo /opt/clusterweaver/app/setup/update.sh
 ```
 
 Update to a release tag:
 
 ```bash
-sudo ./setup/update.sh v0.1.4
+sudo /opt/clusterweaver/app/setup/update.sh v0.1.5
 ```
 
-The updater refuses a dirty Git working tree, stops the service, backs up the closed SQLite database under `/var/lib/clusterweaver/backups`, performs a fast-forward/tag checkout, installs dependencies, runs migrations, refreshes systemd, restarts the service, and runs the health check. A failure handler attempts to bring the service back online.
+The updater downloads the selected release into a temporary checkout, invokes the idempotent installer, backs up the closed SQLite database under `/var/lib/clusterweaver/backups`, preserves the previous application tree under `/opt/clusterweaver/previous`, runs migrations, refreshes systemd, restarts the service, and runs the health check.
 
 ## Health check
 
 ```bash
-sudo ./setup/check.sh
+sudo /opt/clusterweaver/app/setup/check.sh
 ```
