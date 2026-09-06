@@ -6,6 +6,10 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+### Documentation
+
+- Added a complete Italian README and language navigation while retaining English as the primary GitHub README.
+
 ## [0.1.6] - 2026-09-07
 
 ### Added

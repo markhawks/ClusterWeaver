@@ -1,5 +1,7 @@
 # ClusterWeaver
 
+**English** | [Italiano](README_IT.md)
+
 <p align="center">
   <img src="docs/assets/ClusterWeaver-Logo.png" alt="ClusterWeaver — Linux HA Cluster Builder" width="560">
 </p>
@@ -167,4 +169,4 @@ migrations/        # Alembic schema history
 tests/             # unit and web integration tests
 ```
 
-The MVP intentionally excludes Pacemaker configuration, storage, STONITH, Ansible, and RHEL 8 support. SSH execution is currently limited to read-only discovery and explicitly confirmed peer-key bootstrap.
+The MVP currently excludes Pacemaker resource configuration, storage provisioning, STONITH creation, Ansible integration, and RHEL 8 support. Remote SSH operations are gated by workflow prerequisites and explicit confirmation where they modify node state.
