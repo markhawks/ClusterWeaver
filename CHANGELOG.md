@@ -6,6 +6,9 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-09-09
+
+- Added an editable Pacemaker cluster name with safe project-name defaults, portable import/export support, and step 07 cluster creation, startup, membership, WaitForAll, and quorum verification.
 - Added a physical hardware selector to project configuration, initially supporting Dell and Cisco systems.
 - Split the workflow into collapsible pre-cluster and cluster-base phases, and added gated remote step 05 package installation with MPS `osupdate` selection, standard `dnf` selection, idempotent detection, and RPM verification.
 - Added gated remote step 06 to enable and verify `pcsd`, configure the requested `hacluster` credential, and authenticate every cluster nodename from every node; completed phases now collapse automatically while the latest available incomplete phase opens.

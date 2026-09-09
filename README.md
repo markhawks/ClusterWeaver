@@ -10,11 +10,13 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.8**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.9**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
 This first MVP manages RHEL 7, 9, and 10 cluster projects and nodes. It stores searchable state in SQLite, writes a human-readable YAML definition, versions project files in a local Git repository, and generates a reviewable pre-check script. RHEL 8 is deliberately unsupported.
+
+The generated remote workflow is divided into two collapsible phases. **Pre-Cluster Configuration** (steps 00–04) performs SSH bootstrap and discovery, network configuration and verification, `/etc/hosts` management, and preliminary checks. **Cluster Base Installation and Configuration** installs and verifies the Pacemaker packages (step 05), enables `pcsd` and authenticates the nodes (step 06), then creates the named cluster and verifies membership, `WaitForAll`, and quorum (step 07). Each action is gated by the successful completion of the preceding steps and records its result per node.
 
 ## Development prerequisites
 
@@ -128,7 +130,7 @@ The host layout is deliberately small:
 /var/lib/clusterweaver/data/projects/             # persistent YAML projects and Git history
 ```
 
-Application code and Python dependencies are stored inside the versioned OCI image, for example `localhost/clusterweaver:0.1.8`. The container runs as unprivileged UID `10001`, has a read-only application filesystem, drops all Linux capabilities, writes only to the mounted data directory, and provides a periodic health check. On the disconnected target, Satellite supplies only the required RHEL packages; the transferred bundle supplies the application image without contacting GitHub, PyPI, or an external registry.
+Application code and Python dependencies are stored inside the versioned OCI image, for example `localhost/clusterweaver:0.1.9`. The container runs as unprivileged UID `10001`, has a read-only application filesystem, drops all Linux capabilities, writes only to the mounted data directory, and provides a periodic health check. On the disconnected target, Satellite supplies only the required RHEL packages; the transferred bundle supplies the application image without contacting GitHub, PyPI, or an external registry.
 
 It can be managed directly with systemd:
 
@@ -175,7 +177,7 @@ In production, each project is written to:
 
 ## Portable projects
 
-Each project can be exported from the Projects table as a portable `.cwp` archive and imported into another ClusterWeaver instance. Imports always create a new project with a new UUID and reset all remote execution state. The archive contains the editable project definition, generated workflow scripts, format metadata, and SHA-256 checksums; it excludes passwords, SSH keys, application secrets, execution logs, and step results.
+Each project can be exported from the Projects table as a portable `.cwp` archive and imported into another ClusterWeaver instance. Imports always create a new project with a new UUID and reset all remote execution state. The archive contains the editable project definition—including the independent Pacemaker cluster name—generated workflow scripts, format metadata, and SHA-256 checksums; it excludes passwords, SSH keys, application secrets, execution logs, and step results.
 
 On disconnected installations, `.cwp` archives can also be placed in `/var/lib/clusterweaver/data/Project-Import` and selected through **Projects → Import project → Import from server**. The directory may be populated manually or used as the working tree of a separately managed private Git repository. ClusterWeaver never stores Git credentials or runs `git pull`; it only reads direct, regular `.cwp` files and applies the normal archive checksum and schema validation.
 

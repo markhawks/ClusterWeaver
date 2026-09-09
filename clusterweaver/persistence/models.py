@@ -18,6 +18,7 @@ class ProjectRecord(Base):
     uuid: Mapped[str] = mapped_column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(160))
     slug: Mapped[str] = mapped_column(String(180), unique=True, index=True)
+    cluster_name: Mapped[str] = mapped_column(String(64), default="")
     customer: Mapped[str] = mapped_column(String(160), index=True)
     description: Mapped[str] = mapped_column(Text, default="")
     rhel_major: Mapped[int] = mapped_column(Integer)

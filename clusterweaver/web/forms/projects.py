@@ -2,6 +2,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired
 from wtforms import IntegerField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
+import re
 
 
 MINOR_CHOICES = [(str(value), str(value)) for value in range(10)]
@@ -17,6 +18,11 @@ class ProjectForm(FlaskForm):
         "Customer / organization",
         validators=[DataRequired(), Length(max=160)],
         render_kw={"placeholder": "e.g. ACME, Infrastructure Team, Home Lab"},
+    )
+    cluster_name = StringField(
+        "Cluster name",
+        validators=[Optional(), Length(max=64)],
+        render_kw={"placeholder": "Defaults to the project name"},
     )
     description = TextAreaField(
         "Description",
@@ -51,6 +57,13 @@ class ProjectForm(FlaskForm):
     def validate_hypervisor(self, field) -> None:
         if self.platform_type.data == "virtual" and not field.data:
             raise ValidationError("Select an hypervisor for a virtual project.")
+
+    def validate_cluster_name(self, field) -> None:
+        value = (field.data or "").strip()
+        if not value:
+            return
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", value):
+            raise ValidationError("Use 1–64 letters, numbers, hyphens, or underscores; start with a letter or number.")
 
     def validate_hardware(self, field) -> None:
         if self.platform_type.data == "physical" and not field.data:

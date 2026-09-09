@@ -48,6 +48,12 @@ class PackageInstallRunForm(FlaskForm):
     submit = SubmitField("Install on all nodes")
 
 
+class ClusterSetupRunForm(FlaskForm):
+    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    confirm = BooleanField("I understand that this creates, stops, starts, and changes quorum configuration for the cluster.", validators=[DataRequired()])
+    submit = SubmitField("Create and configure cluster")
+
+
 class PcsdAuthRunForm(FlaskForm):
     password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand that this starts pcsd, sets the hacluster password, and authorizes every node.", validators=[DataRequired()])

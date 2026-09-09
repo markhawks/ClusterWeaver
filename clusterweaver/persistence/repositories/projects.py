@@ -16,6 +16,7 @@ def to_domain(record: ProjectRecord) -> ProjectData:
         uuid=UUID(record.uuid),
         name=record.name,
         slug=record.slug,
+        cluster_name=record.cluster_name or record.name,
         customer=record.customer,
         description=record.description,
         rhel_major=record.rhel_major,

@@ -5,7 +5,7 @@ from uuid import uuid4
 from types import SimpleNamespace
 import yaml
 
-from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_pcsd_auth, generate_precheck
+from clusterweaver.core.generators import generate_cluster_setup, generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_pcsd_auth, generate_precheck
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
@@ -256,6 +256,19 @@ def test_pcsd_auth_enables_service_and_authenticates_every_nodename():
     assert "HACLUSTER_PASSWORD='ricciolone'" in script
     assert "CLUSTER_NODES=(node01lanc node02lanc)" in script
     assert 'pcs host auth "${CLUSTER_NODES[@]}" -u hacluster -p "${HACLUSTER_PASSWORD}"' in script
+
+
+def test_cluster_setup_uses_named_cluster_and_required_quorum_sequence():
+    project = sample_project()
+    project.cluster_name = "db2-prod"
+    project.nodes.append(NodeData(hostname="node02", nodename="node02lanc"))
+    script = generate_cluster_setup(project)
+    assert "CLUSTER_NAME=db2-prod" in script
+    assert "NODES=(node01lanc node02lanc)" in script
+    assert 'pcs cluster setup "${CLUSTER_NAME}" --start "${NODES[@]}"' in script
+    for command in ("pcs cluster enable --all", "pcs cluster start --all", "pcs cluster stop --all", "pcs quorum update wait_for_all=1", "pcs quorum config", "pcs quorum status"):
+        assert command in script
+    assert "Quorate:" in script and "EXPECTED_NODES=2" in script
 
 
 def test_network_connectivity_checks_peer_route_ping_mtu_and_duplicates():

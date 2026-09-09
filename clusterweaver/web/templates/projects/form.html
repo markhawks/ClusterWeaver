@@ -13,6 +13,8 @@
     {{ render_field(form.name) }}
     <datalist id="project-name-suggestions"><option value="postgres-ha-prod"><option value="db2-ha-prod"><option value="apache-ha-prod"></datalist>
     <div class="form-text mt-n2 mb-3">Suggested names: <code>postgres-ha-prod</code>, <code>db2-ha-prod</code>, or <code>apache-ha-prod</code>.</div>
+    {{ render_field(form.cluster_name) }}
+    <div class="form-text mt-n2 mb-3">Pacemaker cluster name used by <code>pcs cluster setup</code>. If left empty, the project name is proposed.</div>
     {{ render_field(form.customer) }}
     <div class="form-text mt-n2 mb-3">The company, department, customer, or lab that owns the cluster; for example <code>ACME</code>, <code>Database Team</code>, or <code>Home Lab</code>.</div>
     {{ render_field(form.description) }}
@@ -25,5 +27,6 @@
 </div></div></div></div>
 <script>
   window.clusterWeaverRhelMinors = {"7":["0","1","2","3","4","5","6","7","8","9"],"9":["0","1","2","3","4","5","6","7","8"],"10":["0","1","2"]};
+  (() => { const name = document.getElementById('name'); const cluster = document.getElementById('cluster_name'); if (!name || !cluster) return; let edited = Boolean(cluster.value); cluster.addEventListener('input', () => { edited = Boolean(cluster.value); }); name.addEventListener('input', () => { if (!edited) cluster.value = name.value.normalize('NFKD').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64); }); })();
 </script>
 {% endblock %}

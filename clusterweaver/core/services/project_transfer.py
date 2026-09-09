@@ -25,7 +25,7 @@ ALLOWED_MEMBERS = {
     "manifest.yaml", "project.yaml", "CHECKSUMS.sha256",
     "scripts/00-ssh-discovery.sh", "scripts/00-peer-trust.sh", "scripts/00-network-configuration.sh",
     "scripts/01-prechecks.sh", "scripts/02-network-check.sh", "scripts/03-hosts-update.sh",
-    "scripts/04-network-connectivity.sh", "scripts/05-package-install.sh", "scripts/06-pcsd-auth.sh",
+    "scripts/04-network-connectivity.sh", "scripts/05-package-install.sh", "scripts/06-pcsd-auth.sh", "scripts/07-cluster-setup.sh",
 }
 
 
@@ -155,6 +155,9 @@ def _validate_project_document(document) -> dict:
             raise ProjectTransferError("Unsupported hardware platform.")
     else:
         hardware = ""
+    cluster_name = _text(project.get("cluster_name") or project.get("slug") or project.get("name"), "cluster name", required=True, maximum=64)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", cluster_name):
+        raise ProjectTransferError("Invalid cluster name.")
     normalized_nodes = []
     seen_hostnames: set[str] = set()
     seen_ips: set[str] = set()
@@ -208,6 +211,7 @@ def _validate_project_document(document) -> dict:
     return {
         "project": {
             "name": _text(project.get("name"), "project name", required=True, maximum=160),
+            "cluster_name": cluster_name,
             "customer": _text(project.get("customer"), "customer", required=True, maximum=160),
             "description": _text(project.get("description"), "description", maximum=5000),
             "rhel_major": major, "rhel_minor": minor, "platform_type": platform_type,

@@ -10,11 +10,13 @@
 
 Strumento per la creazione e la gestione del ciclo di vita dei cluster Linux High Availability.
 
-Versione corrente: **0.1.8**. La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
+Versione corrente: **0.1.9**. La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
 
 ClusterWeaver è software libero distribuito con licenza [GNU Affero General Public License v3.0](LICENSE). Le versioni modificate offerte agli utenti attraverso una rete devono rendere disponibile il relativo codice sorgente con la stessa licenza. Per contribuire consulta [CONTRIBUTING.md](CONTRIBUTING.md) e [SECURITY.md](SECURITY.md).
 
 Questo primo MVP gestisce progetti e nodi cluster RHEL 7, 9 e 10. Memorizza lo stato ricercabile in SQLite, genera una definizione YAML leggibile, versiona i file dei progetti in un repository Git locale e produce script verificabili prima dell’esecuzione. RHEL 8 non è volutamente supportato.
+
+Il workflow remoto è suddiviso in due fasi richiudibili. **Pre-Cluster Configuration** (step 00–04) gestisce bootstrap e discovery SSH, configurazione e verifica della rete, `/etc/hosts` e controlli preliminari. **Cluster Base Installation and Configuration** installa e verifica i pacchetti Pacemaker (step 05), abilita `pcsd` e autentica i nodi (step 06), quindi crea il cluster con il nome configurato e verifica membership, `WaitForAll` e quorum (step 07). Ogni azione è subordinata al completamento corretto degli step precedenti e registra il risultato per ciascun nodo.
 
 ## Requisiti di sviluppo
 
@@ -128,7 +130,7 @@ La struttura sul sistema host è volutamente ridotta:
 /var/lib/clusterweaver/data/projects/             # progetti YAML e storico Git persistenti
 ```
 
-Il codice applicativo e le dipendenze Python sono contenuti nell’immagine OCI versionata, per esempio `localhost/clusterweaver:0.1.8`. Il container viene eseguito con UID non privilegiato `10001`, usa un filesystem applicativo in sola lettura, non possiede capability Linux, può scrivere solamente nella directory dati montata ed esegue un health check periodico. Sul server isolato Satellite fornisce soltanto i pacchetti RHEL richiesti; il bundle trasferito contiene l’immagine applicativa e non contatta GitHub, PyPI o registry esterni.
+Il codice applicativo e le dipendenze Python sono contenuti nell’immagine OCI versionata, per esempio `localhost/clusterweaver:0.1.9`. Il container viene eseguito con UID non privilegiato `10001`, usa un filesystem applicativo in sola lettura, non possiede capability Linux, può scrivere solamente nella directory dati montata ed esegue un health check periodico. Sul server isolato Satellite fornisce soltanto i pacchetti RHEL richiesti; il bundle trasferito contiene l’immagine applicativa e non contatta GitHub, PyPI o registry esterni.
 
 Comandi principali:
 
@@ -179,7 +181,7 @@ Le piccole modifiche applicative possono essere trasferite a un'installazione Po
 
 ## Progetti portabili
 
-Ogni progetto può essere esportato dalla tabella Projects come archivio portabile `.cwp` e importato in un’altra istanza ClusterWeaver. L’importazione crea sempre un nuovo progetto con un nuovo UUID e azzera lo stato delle esecuzioni remote. L’archivio contiene configurazione modificabile, script del workflow, metadati del formato e checksum SHA-256; esclude password, chiavi SSH, segreti applicativi, log e risultati degli step.
+Ogni progetto può essere esportato dalla tabella Projects come archivio portabile `.cwp` e importato in un’altra istanza ClusterWeaver. L’importazione crea sempre un nuovo progetto con un nuovo UUID e azzera lo stato delle esecuzioni remote. L’archivio contiene la configurazione modificabile, incluso il nome Pacemaker indipendente del cluster, gli script del workflow, i metadati del formato e i checksum SHA-256; esclude password, chiavi SSH, segreti applicativi, log e risultati degli step.
 
 ## Variabili di configurazione
 

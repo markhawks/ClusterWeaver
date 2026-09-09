@@ -26,7 +26,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
     page = login_client.get("/login")
     assert b"ClusterWeaver project logo" in page.data
-    assert b"Version 0.1.8" in page.data
+    assert b"Version 0.1.9" in page.data
     assert b"remotely executes controlled workflows" in page.data
     assert b'<html lang="en" data-bs-theme="dark">' in page.data
     assert b'<body class="login-page">' in page.data
@@ -148,7 +148,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Changelog" in response.data and b"Changelog <small" not in response.data
     assert b"Configuration" in response.data and b"About ClusterWeaver" in response.data
     assert b"github.com/markhawks/ClusterWeaver" in response.data and b"Author: Mark Hawks" in response.data and b"Gunicorn" in response.data
-    assert "ClusterWeaver</strong><span>– Version 0.1.8</span>".encode() in response.data
+    assert "ClusterWeaver</strong><span>– Version 0.1.9</span>".encode() in response.data
     assert b"Linux High Availability Cluster Builder &amp; Lifecycle Manager" in response.data
     assert b'rel="icon"' in response.data
     assert b"Generated workflow" in response.data
@@ -156,14 +156,14 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"SSH discovery" in response.data and b"Peer SSH trust" in response.data and b"Network configuration" in response.data
     assert b"cw-icon-oscilloscope" in response.data
     assert b"cw-icon-cluster-settings" in response.data
-    assert response.data.count(b"cw-icon-footprints") == 7
+    assert response.data.count(b"cw-icon-footprints") == 8
     assert b"0/5 complete" in response.data and b"5/5 remaining" in response.data
-    assert b"0/2 complete" in response.data and b"2/2 remaining" in response.data
+    assert b"0/3 complete" in response.data and b"3/3 remaining" in response.data
     assert b'id="pre-cluster-workflow" class="collapse show"' in response.data
     assert b'id="cluster-base-workflow" class="collapse"' in response.data
     assert b'id="workflow-run-01" class="btn btn-outline-secondary"' in response.data
-    assert response.data.count(b"Show script") == 6
-    assert response.data.count(b"Full screen") == 6
+    assert response.data.count(b"Show script") == 7
+    assert response.data.count(b"Full screen") == 7
     assert b'id="script-viewer"' in response.data
     assert b'id="project-configuration" class="collapse show"' in response.data
     assert b"cw-icon-settings" in response.data
@@ -591,13 +591,21 @@ def test_remote_network_check_is_available_from_gui(client, app, monkeypatch):
     assert 'rpm -q "${package}"' in captured["script"]
     project_page = client.get(project_url)
     assert b'id="workflow-run-06" class="btn btn-success"' in project_page.data
-    assert b"1/2 complete" in project_page.data and b"1/2 remaining" in project_page.data
+    assert b"1/3 complete" in project_page.data and b"2/3 remaining" in project_page.data
     pcsd = client.post(f"{project_url}/run-pcsd-auth", data={
         "pcsd-auth-password": "temporary", "pcsd-auth-confirm": "y",
     })
     assert pcsd.status_code == 200 and b"pcsd service and host authentication" in pcsd.data
     assert "systemctl enable --now pcsd.service" in captured["script"]
     assert "node01lanc" in captured["script"]
+    project_page = client.get(project_url)
+    assert b'id="workflow-run-07" class="btn btn-success"' in project_page.data
+    cluster_setup = client.post(f"{project_url}/run-cluster-setup", data={
+        "cluster-setup-password": "temporary", "cluster-setup-confirm": "y",
+    })
+    assert cluster_setup.status_code == 200 and b"Cluster creation and quorum configuration" in cluster_setup.data
+    assert 'pcs cluster setup "${CLUSTER_NAME}" --start "${NODES[@]}"' in captured["script"]
+    assert "pcs quorum update wait_for_all=1" in captured["script"]
 
 
 def test_copy_script_has_http_fallback(client):

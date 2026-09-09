@@ -31,6 +31,7 @@ class ProjectData:
     platform_type: str
     node_count: int
     slug: str
+    cluster_name: str = ""
     hypervisor: str = ""
     hardware: str = ""
     nodes: list[NodeData] = field(default_factory=list)

@@ -14,6 +14,7 @@ def project_to_dict(project: ProjectData) -> dict:
             "uuid": str(project.uuid),
             "name": project.name,
             "slug": project.slug,
+            "cluster_name": project.cluster_name or project.name,
             "customer": project.customer,
             "description": project.description or "",
             "os": {
