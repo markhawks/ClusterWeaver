@@ -96,6 +96,32 @@ Then open `http://<vm-ip>:5000`. If `firewalld` is active, TCP port 5000 must al
 
 The installed `clusterweaver-control.service` runs `/opt/clusterweaver/app` with its virtual environment at `/opt/clusterweaver/venv`. Gunicorn runs as the unprivileged `clusterweaver` account, starts at boot, stores state in `/var/lib/clusterweaver`, and reads private configuration from `/etc/clusterweaver/clusterweaver.env`.
 
+## Operating-system architecture
+
+The recommended disconnected RHEL 10.2 deployment runs ClusterWeaver as a Podman container managed by systemd through Quadlet:
+
+```text
+Browser
+   │ TCP/5000
+   ▼
+systemd → Podman → ClusterWeaver (Flask/Gunicorn)
+                         │
+                         ├── SQLite database
+                         ├── YAML projects and local Git history
+                         └── SSH TCP/22 → managed cluster nodes
+```
+
+The host layout is deliberately small:
+
+```text
+/etc/clusterweaver/clusterweaver.env             # protected configuration and secrets
+/etc/containers/systemd/clusterweaver.container  # Podman Quadlet definition
+/var/lib/clusterweaver/data/clusterweaver.db      # persistent SQLite database
+/var/lib/clusterweaver/data/projects/             # persistent YAML projects and Git history
+```
+
+Application code and Python dependencies are stored inside the versioned OCI image, for example `localhost/clusterweaver:0.1.7`. The container runs as unprivileged UID `10001`, has a read-only application filesystem, drops all Linux capabilities, writes only to the mounted data directory, and provides a periodic health check. On the disconnected target, Satellite supplies only the required RHEL packages; the transferred bundle supplies the application image without contacting GitHub, PyPI, or an external registry.
+
 It can be managed directly with systemd:
 
 ```bash

@@ -96,6 +96,32 @@ Apri quindi `http://<ip-vm>:5000`. Se firewalld è attivo, occorre autorizzare a
 
 Il servizio installato `clusterweaver-control.service` esegue `/opt/clusterweaver/app` usando il virtual environment `/opt/clusterweaver/venv`. Gunicorn viene eseguito con l’account non privilegiato `clusterweaver`, si avvia al boot, conserva lo stato in `/var/lib/clusterweaver` e legge la configurazione privata da `/etc/clusterweaver/clusterweaver.env`.
 
+## Architettura lato sistema operativo
+
+Nell’installazione raccomandata per RHEL 10.2 senza accesso a Internet, ClusterWeaver viene eseguito come container Podman gestito da systemd attraverso Quadlet:
+
+```text
+Browser
+   │ TCP/5000
+   ▼
+systemd → Podman → ClusterWeaver (Flask/Gunicorn)
+                         │
+                         ├── database SQLite
+                         ├── progetti YAML e storico Git locale
+                         └── SSH TCP/22 → nodi cluster gestiti
+```
+
+La struttura sul sistema host è volutamente ridotta:
+
+```text
+/etc/clusterweaver/clusterweaver.env             # configurazione e segreti protetti
+/etc/containers/systemd/clusterweaver.container  # definizione Podman Quadlet
+/var/lib/clusterweaver/data/clusterweaver.db      # database SQLite persistente
+/var/lib/clusterweaver/data/projects/             # progetti YAML e storico Git persistenti
+```
+
+Il codice applicativo e le dipendenze Python sono contenuti nell’immagine OCI versionata, per esempio `localhost/clusterweaver:0.1.7`. Il container viene eseguito con UID non privilegiato `10001`, usa un filesystem applicativo in sola lettura, non possiede capability Linux, può scrivere solamente nella directory dati montata ed esegue un health check periodico. Sul server isolato Satellite fornisce soltanto i pacchetti RHEL richiesti; il bundle trasferito contiene l’immagine applicativa e non contatta GitHub, PyPI o registry esterni.
+
 Comandi principali:
 
 ```bash

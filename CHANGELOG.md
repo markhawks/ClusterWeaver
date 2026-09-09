@@ -6,6 +6,10 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+### Documentation
+
+- Added concise operating-system architecture diagrams and host/container layout descriptions to both English and Italian READMEs.
+
 ## [0.1.7] - 2026-09-07
 
 ### Documentation
