@@ -194,6 +194,8 @@ def test_hosts_update_replaces_imported_project_block_and_preserves_other_cluste
         "# BEGIN ClusterWeaver old-project-id\n"
         "192.168.1.11 node01lanc\n"
         "# END ClusterWeaver old-project-id\n"
+        "# BEGIN ClusterWeaver orphaned-empty-block\n"
+        "# END ClusterWeaver orphaned-empty-block\n"
         "# BEGIN ClusterWeaver another-cluster\n"
         "172.16.0.11 othernode\n"
         "# END ClusterWeaver another-cluster\n"
@@ -209,6 +211,7 @@ def test_hosts_update_replaces_imported_project_block_and_preserves_other_cluste
     assert completed.returncode == 0, completed.stderr
     updated = hosts_file.read_text()
     assert "old-project-id" not in updated
+    assert "orphaned-empty-block" not in updated
     assert f"# BEGIN ClusterWeaver {project.uuid}" in updated
     assert "192.168.1.11 node01lanc" in updated
     assert "# BEGIN ClusterWeaver another-cluster" in updated
