@@ -6,9 +6,15 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-09-07
+
 ### Documentation
 
 - Added a complete Italian README and language navigation while retaining English as the primary GitHub README.
+
+### Added
+
+- Added a read-only `preflight.sh` for offline RHEL 10.2 installations and made the offline installer run it before changing the server.
 
 ## [0.1.6] - 2026-09-07
 

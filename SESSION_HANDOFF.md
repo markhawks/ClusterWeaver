@@ -6,10 +6,8 @@ Updated: 2026-09-07 (Europe/Rome)
 
 - Working directory: `/var/www/html/ClusterWeaver`
 - Git branch: `main`
-- Current released version: `0.1.6`
-- Release tag commit: `fcb88dc888b885df6f1849869457e31cde73f37a`
-- Current `main` commit: `cfc48e8` (English/Italian README documentation update after the release tag)
-- GitHub release: `https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.6`
+- Current released version: `0.1.7`
+- GitHub release: `https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.7`
 - Application version source: `clusterweaver/version.py`
 - Service: `clusterweaver-control`
 - Database migration head: `0010_user_theme`
@@ -85,7 +83,7 @@ curl --fail --silent http://127.0.0.1:5000/login
 podman inspect clusterweaver-offline-test-016 --format '{{.State.Health.Status}}'
 ```
 
-Result: `46 passed`; native service active on version 0.1.6; isolated 0.1.6 container healthy.
+Expected result: `46 passed`; native service and isolated release container healthy.
 
 ## Important operational notes
 
@@ -96,7 +94,7 @@ Result: `46 passed`; native service active on version 0.1.6; isolated 0.1.6 cont
 - `.cwp` imports intentionally receive a new project UUID/ID and no Step execution records; Step 00 must be executed again on the destination environment.
 - `.cwp` exports never contain passwords, private SSH keys, application secrets, execution output, or workflow status.
 - The main GitHub `README.md` is English; `README_IT.md` is the complete Italian version. Both contain language navigation.
-- The 0.1.6 offline bundle is `dist/clusterweaver-0.1.6-linux-amd64-offline.tar.gz` with the adjacent `.sha256` file; both are attached to the GitHub release.
+- The 0.1.7 offline bundle is `dist/clusterweaver-0.1.7-linux-amd64-offline.tar.gz` with the adjacent `.sha256` file; both are attached to the GitHub release.
 
 ## Suggested next session start
 
@@ -108,8 +106,8 @@ Result: `46 passed`; native service active on version 0.1.6; isolated 0.1.6 cont
 
 ## Next-session priority: remote Podman test
 
-1. Download both 0.1.6 release assets on a connected workstation and transfer them to the RHEL 10.2 x86_64 server through the approved channel.
-2. On the remote server run `sha256sum -c clusterweaver-0.1.6-linux-amd64-offline.tar.gz.sha256`, extract the archive, then run `sudo ./install-offline.sh` from the extracted directory.
+1. Download both 0.1.7 release assets on a connected workstation and transfer them to the RHEL 10.2 x86_64 server through the approved channel.
+2. On the remote server run `sha256sum -c clusterweaver-0.1.7-linux-amd64-offline.tar.gz.sha256`, extract the archive, run `sudo ./preflight.sh`, then run `sudo ./install-offline.sh` from the extracted directory.
 3. Verify `systemctl status clusterweaver.service`, `podman healthcheck run clusterweaver`, port TCP/5000, SELinux enforcing mode, and login with initial `admin` / `changeme`; change the password immediately.
 4. Export a populated project as `.cwp` from the local instance, transfer it to the remote instance, import it, and confirm:
    - the imported project name ends in `(Imported)`;
@@ -128,6 +126,13 @@ Result: `46 passed`; native service active on version 0.1.6; isolated 0.1.6 cont
 - Added `setup/offline-container/` for disconnected RHEL 10.2 x86_64 systems: multi-stage UBI 10 image, OCI archive builder, Podman Quadlet, offline install/update/uninstall/verify scripts, checksums, inventories, and Kickstart instructions.
 - Built `dist/clusterweaver-0.1.4-linux-amd64-offline.tar.gz` locally; `dist/` is ignored by Git.
 - Local Podman test container `clusterweaver-offline-test` listens on `127.0.0.1:5051`, persists under `/var/lib/clusterweaver-podman-test/data`, and passed health, login, project creation, YAML/Git persistence, Configuration, and migration tests.
+
+## Work released in 0.1.7
+
+- Added `preflight.sh` to automate all checks required before an offline RHEL 10.2 x86_64 installation.
+- The pre-flight reports PASS/WARNING/FAIL for root, exact OS version, architecture, systemd, Satellite identity, enabled DNF repositories, required packages, `/var` capacity, SELinux, TCP/5000, and Podman.
+- The check does not install packages or alter system configuration; DNF may refresh repository metadata while checking availability.
+- `install-offline.sh` now runs the pre-flight automatically before installing packages or loading the OCI image.
 
 ## Work released in 0.1.6
 

@@ -8,7 +8,7 @@ The build host needs x86_64 Podman plus access to Red Hat UBI repositories and P
 
 ```bash
 ./setup/offline-container/build-offline-bundle.sh
-sha256sum -c dist/clusterweaver-0.1.6-linux-amd64-offline.tar.gz.sha256
+sha256sum -c dist/clusterweaver-0.1.7-linux-amd64-offline.tar.gz.sha256
 ```
 
 Transfer the `.tar.gz` and its `.sha256` file through the approved offline channel.
@@ -37,11 +37,14 @@ After first boot, copy the bundle to `/root`, then run:
 
 ```bash
 cd /root
-sha256sum -c clusterweaver-0.1.6-linux-amd64-offline.tar.gz.sha256
-tar -xzf clusterweaver-0.1.6-linux-amd64-offline.tar.gz
-cd clusterweaver-0.1.6-linux-amd64-offline
+sha256sum -c clusterweaver-0.1.7-linux-amd64-offline.tar.gz.sha256
+tar -xzf clusterweaver-0.1.7-linux-amd64-offline.tar.gz
+cd clusterweaver-0.1.7-linux-amd64-offline
+./preflight.sh
 ./install-offline.sh
 ```
+
+`preflight.sh` does not install packages or change system configuration. It checks root access, exact RHEL release, architecture, systemd, Satellite/subscription identity, enabled repositories, package availability, free space, SELinux, Podman, and TCP port 5000. It exits unsuccessfully when a mandatory prerequisite is missing; warnings do not block installation. DNF may refresh repository metadata while checking package availability.
 
 Use `./install-offline.sh --no-firewall` when the port is managed centrally. The installer uses only the transferred OCI archive and packages supplied by Satellite. It does not call GitHub, PyPI, or a container registry.
 

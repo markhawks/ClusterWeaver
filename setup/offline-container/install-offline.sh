@@ -19,6 +19,7 @@ source /etc/os-release
 
 cd "${bundle_dir}"
 sha256sum --check SHA256SUMS
+"${bundle_dir}/preflight.sh"
 dnf install -y container-tools openssl curl
 archive="$(find "${bundle_dir}" -maxdepth 1 -type f -name 'clusterweaver-*.oci.tar' -print -quit)"
 [[ -n "${archive}" ]] || { echo "OCI image archive not found." >&2; exit 1; }
@@ -49,4 +50,3 @@ fi
 "${bundle_dir}/verify.sh"
 echo "Installation complete. Initial login for an empty database: admin / changeme"
 echo "Change the password immediately from Configuration."
-
