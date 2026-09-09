@@ -14,9 +14,8 @@
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
       <button class="btn border-0 p-0 me-2" type="button" data-bs-toggle="modal" data-bs-target="#about-clusterweaver" title="About ClusterWeaver"><img class="brand-logo" src="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}" alt="ClusterWeaver logo"></button>
-      <a class="navbar-brand" href="{{ url_for('projects.index') }}" title="Return to project home">ClusterWeaver</a>
+      <a class="navbar-brand clusterweaver-identity" href="{{ url_for('projects.index') }}" title="Return to project home"><strong>ClusterWeaver</strong><span>– Version {{ clusterweaver_version }}</span><span class="d-none d-xl-inline">– Linux High Availability Cluster Builder &amp; Lifecycle Manager</span></a>
       <div class="d-flex flex-grow-1 align-items-center justify-content-end gap-3">
-        <span class="navbar-text d-none d-md-inline me-auto ms-3">Linux High Availability Cluster Builder &amp; Lifecycle Manager</span>
         <a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('projects.index') }}">{{ icon('home') }} <span>Home</span></a>
         <a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('projects.index') }}">{{ icon('projects') }} <span>Project</span></a>
         {% if session.get('authenticated') or config.LOGIN_DISABLED %}<a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('settings.configuration') }}">{{ icon('settings') }} <span>Configuration</span></a>{% endif %}
@@ -39,8 +38,8 @@
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
       <div class="modal-header"><h2 class="modal-title fs-5" id="about-clusterweaver-title">About ClusterWeaver</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
       <div class="modal-body">
-        <div class="d-flex align-items-center gap-3 mb-3"><img class="about-logo" src="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}" alt=""><div><strong>ClusterWeaver {{ clusterweaver_version }}</strong><div class="text-body-secondary">Author: Mark Hawks</div></div></div>
-        <p><a href="https://github.com/markhawks/ClusterWeaver" target="_blank" rel="noopener noreferrer">GitHub project page</a></p>
+        <div class="d-flex align-items-center gap-3 mb-3"><img class="about-logo" src="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}" alt=""><div><strong>ClusterWeaver — Version {{ clusterweaver_version }}</strong><div class="text-body-secondary">Author: Mark Hawks</div></div></div>
+        <p><strong>Source:</strong> <a href="https://github.com/markhawks/ClusterWeaver" target="_blank" rel="noopener noreferrer">github.com/markhawks/ClusterWeaver</a></p>
         <h3 class="fs-6">Software components</h3>
         <div class="table-responsive"><table class="table table-sm mb-0"><tbody>{% for name, component_version in software_components %}<tr><th scope="row">{{ name }}</th><td>{{ component_version }}</td></tr>{% endfor %}</tbody></table></div>
       </div>

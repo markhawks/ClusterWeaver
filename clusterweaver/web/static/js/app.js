@@ -59,6 +59,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!toggle) return;
     const isScript = toggle.textContent.trim().toLowerCase().includes("script");
     const summary = panel.closest(".workflow-script-area")?.querySelector(".workflow-run-summary");
+    toggle.textContent = panel.classList.contains("show") ? (isScript ? "Hide script" : "Hide") : (isScript ? "Show script" : "Show");
+    toggle.setAttribute("aria-expanded", panel.classList.contains("show") ? "true" : "false");
     panel.addEventListener("show.bs.collapse", () => { summary?.classList.add("d-none"); });
     panel.addEventListener("shown.bs.collapse", () => { toggle.textContent = isScript ? "Hide script" : "Hide"; });
     panel.addEventListener("hidden.bs.collapse", () => {

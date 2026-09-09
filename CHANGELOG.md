@@ -8,6 +8,10 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 - Added a physical hardware selector to project configuration, initially supporting Dell and Cisco systems.
 - Split the workflow into collapsible pre-cluster and cluster-base phases, and added gated remote step 05 package installation with MPS `osupdate` selection, standard `dnf` selection, idempotent detection, and RPM verification.
+- Added gated remote step 06 to enable and verify `pcsd`, configure the requested `hacluster` credential, and authenticate every cluster nodename from every node; completed phases now collapse automatically while the latest available incomplete phase opens.
+- Refined workflow and project-list styling with footprint step icons, high-contrast step panels, combined Hypervisor/HW display, color-separated project metadata and description previews, and a primary import action.
+- Consolidated the top-left product identity into an aligned blue ClusterWeaver, version, and product-description line, with explicit author and GitHub source details in the logo information dialog.
+- Aligned the Configuration and Cluster overview panels with the high-contrast workflow phase headers and made their bodies collapse without retaining equal-height empty space.
 - Added high-contrast phase headers, monochrome oscilloscope and cluster-settings icons, and persistent completed/remaining progress counters for collapsed workflow phases.
 - Added guarded Step 00 NetworkManager configuration support for imported RHEL 9.8 projects, including remote release verification and the existing idempotency, rollback, backup, and formed-cluster protections.
 - Step 03 now removes obsolete or empty ClusterWeaver `/etc/hosts` blocks left by an imported copy of the same cluster, while preserving populated blocks for unrelated clusters.

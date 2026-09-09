@@ -5,7 +5,7 @@ from uuid import uuid4
 from types import SimpleNamespace
 import yaml
 
-from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_precheck
+from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_pcsd_auth, generate_precheck
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
@@ -244,6 +244,18 @@ def test_package_install_uses_dnf_for_other_customers():
     project = sample_project()
     project.customer = "Example"
     assert "INSTALLER=dnf" in generate_package_install(project)
+
+
+def test_pcsd_auth_enables_service_and_authenticates_every_nodename():
+    project = sample_project()
+    project.nodes.append(NodeData(hostname="node02", nodename="node02lanc"))
+    script = generate_pcsd_auth(project)
+    assert "systemctl enable --now pcsd.service" in script
+    assert "systemctl is-enabled --quiet pcsd.service" in script
+    assert "systemctl is-active --quiet pcsd.service" in script
+    assert "HACLUSTER_PASSWORD='ricciolone'" in script
+    assert "CLUSTER_NODES=(node01lanc node02lanc)" in script
+    assert 'pcs host auth "${CLUSTER_NODES[@]}" -u hacluster -p "${HACLUSTER_PASSWORD}"' in script
 
 
 def test_network_connectivity_checks_peer_route_ping_mtu_and_duplicates():

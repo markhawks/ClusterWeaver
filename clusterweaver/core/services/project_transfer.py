@@ -25,7 +25,7 @@ ALLOWED_MEMBERS = {
     "manifest.yaml", "project.yaml", "CHECKSUMS.sha256",
     "scripts/00-ssh-discovery.sh", "scripts/00-peer-trust.sh", "scripts/00-network-configuration.sh",
     "scripts/01-prechecks.sh", "scripts/02-network-check.sh", "scripts/03-hosts-update.sh",
-    "scripts/04-network-connectivity.sh", "scripts/05-package-install.sh",
+    "scripts/04-network-connectivity.sh", "scripts/05-package-install.sh", "scripts/06-pcsd-auth.sh",
 }
 
 

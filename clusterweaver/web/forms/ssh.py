@@ -46,3 +46,9 @@ class PackageInstallRunForm(FlaskForm):
     password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand that this installs cluster packages on every node.", validators=[DataRequired()])
     submit = SubmitField("Install on all nodes")
+
+
+class PcsdAuthRunForm(FlaskForm):
+    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    confirm = BooleanField("I understand that this starts pcsd, sets the hacluster password, and authorizes every node.", validators=[DataRequired()])
+    submit = SubmitField("Configure on all nodes")

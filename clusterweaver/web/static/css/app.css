@@ -12,21 +12,30 @@ body { background: #f4f6f8; }
 .login-page main { min-height: 100vh; display: flex; align-items: center; }
 .login-page .login-shell { width: 100%; }
 .navbar-brand { font-weight: 700; letter-spacing: .02em; }
+.clusterweaver-identity { display: inline-flex; align-items: baseline; gap: .4rem; min-width: 0; color: var(--bs-primary) !important; font-size: .95rem; letter-spacing: 0; white-space: nowrap; }
+.clusterweaver-identity strong { font-weight: 700; }
+.clusterweaver-identity span { font-weight: 400; }
+.clusterweaver-identity:hover, .clusterweaver-identity:focus { color: #6ea8fe !important; }
 .brand-logo { width: 48px; height: 48px; object-fit: contain; border-radius: 50%; }
 .about-logo { width: 72px; height: 72px; object-fit: contain; }
 .configuration-title-icon .cw-icon { width: 2rem; height: 2rem; }
 .info-button { border-radius: 50%; font-weight: 700; line-height: 1; padding: .2rem .46rem; }
 @media (max-width: 575.98px) { .brand-logo { width: 40px; height: 40px; } }
+@media (max-width: 767.98px) { .clusterweaver-identity { font-size: .84rem; } }
 .card { border: 0; }
 .code-panel { background: #111827; color: #e5e7eb; border-radius: .5rem; padding: 1rem; max-height: 300px; overflow: auto; white-space: pre; font-size: .79rem; }
 .compact-code { max-height: 240px; margin-bottom: .5rem; }
 .fullscreen-code { max-height: none; min-height: 0; height: 100%; margin-bottom: .5rem; }
 #script-viewer .modal-body { min-height: 0; }
-.workflow-description { background: #fafbfc; }
+.workflow-description { background: #e9ecef; color: #111820; border-left: .3rem solid #6c757d; }
 .workflow-run-summary { min-height: 7rem; }
 .workflow-step .workflow-description,
 .workflow-step .workflow-run-summary { padding: 1rem 1.25rem !important; }
 .workflow-description p { font-size: 1rem; line-height: 1.55; }
+.workflow-description h3 { color: #111820; }
+.workflow-description p.text-secondary { color: #343a40 !important; }
+.workflow-step-icon { display: inline-grid; place-items: center; width: 1.65rem; height: 1.65rem; color: #fff; background: #6c757d; border-radius: .35rem; }
+.workflow-step-icon .cw-icon { width: 1.05rem; height: 1.05rem; }
 .workflow-result-row + .workflow-result-row { border-top: 1px solid #eef0f2; padding-top: .5rem; }
 .workflow-status-icon { display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem; border: 1px solid currentColor; border-radius: 50%; font-weight: 700; }
 .workflow-phase-header { background: #e9ecef; color: #111820; border-bottom: 2px solid #adb5bd; }
@@ -49,14 +58,23 @@ h1 .cw-icon { width: 1.45rem; height: 1.45rem; }
 dd { color: #5f6873; }
 .clickable-row { cursor: pointer; }
 .clickable-row:focus { outline: 3px solid rgba(13, 110, 253, .35); outline-offset: -3px; }
-[data-bs-theme="dark"] .workflow-description,
+.project-summary-cell { min-width: 16rem; max-width: 25rem; }
+.project-name { color: #0b5ed7; font-weight: 700; }
+.cluster-name { color: #087990; font-size: .875rem; font-weight: 600; }
+.project-notes { color: #6f42c1; font-size: .82rem; }
+.cluster-name span, .project-notes span { color: #5f6873; font-weight: 500; }
+[data-bs-theme="dark"] .workflow-description { background: #e9ecef; color: #111820; }
 [data-bs-theme="dark"] .login-brand-panel { background: #646b73; }
 [data-bs-theme="dark"] dd { color: #e0e3e6; }
 [data-bs-theme="dark"] .login-page .text-secondary { color: #fff !important; }
 [data-bs-theme="dark"] .text-secondary,
 [data-bs-theme="dark"] .text-body-secondary,
 [data-bs-theme="dark"] .form-text { color: #f1f3f5 !important; }
-[data-bs-theme="dark"] .workflow-description p { color: #fff !important; }
+[data-bs-theme="dark"] .workflow-description p { color: #343a40 !important; }
+[data-bs-theme="dark"] .project-name { color: #8bb9ff; }
+[data-bs-theme="dark"] .cluster-name { color: #75d5e8; }
+[data-bs-theme="dark"] .project-notes { color: #d2b5ff; }
+[data-bs-theme="dark"] .cluster-name span, [data-bs-theme="dark"] .project-notes span { color: #d6d9dc; }
 [data-bs-theme="dark"] .btn-outline-secondary { color: #f1f3f5; border-color: #c5cbd1; }
 [data-bs-theme="dark"] .btn-outline-secondary:hover { color: #343a40; background: #f1f3f5; border-color: #f1f3f5; }
 [data-bs-theme="dark"] .table { --bs-table-color: #f1f3f5; }

@@ -32,7 +32,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert b'<body class="login-page">' in page.data
     stylesheet = login_client.get("/static/css/app.css")
     assert b'.login-page .text-secondary { color: #fff !important; }' in stylesheet.data
-    assert b'.workflow-description p { color: #fff !important; }' in stylesheet.data
+    assert b'.workflow-description p { color: #343a40 !important; }' in stylesheet.data
     assert b'.workflow-run-summary { min-height: 7rem; }' in stylesheet.data
     assert b'<nav class="navbar' not in page.data
     assert b"Changelog" not in page.data and b"About ClusterWeaver" not in page.data
@@ -147,18 +147,23 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"cw-icon-notebook" in response.data
     assert b"Changelog" in response.data and b"Changelog <small" not in response.data
     assert b"Configuration" in response.data and b"About ClusterWeaver" in response.data
-    assert b"GitHub project page" in response.data and b"Gunicorn" in response.data
+    assert b"github.com/markhawks/ClusterWeaver" in response.data and b"Author: Mark Hawks" in response.data and b"Gunicorn" in response.data
+    assert "ClusterWeaver</strong><span>– Version 0.1.8</span>".encode() in response.data
+    assert b"Linux High Availability Cluster Builder &amp; Lifecycle Manager" in response.data
     assert b'rel="icon"' in response.data
     assert b"Generated workflow" in response.data
     assert b"Step 00" in response.data
     assert b"SSH discovery" in response.data and b"Peer SSH trust" in response.data and b"Network configuration" in response.data
     assert b"cw-icon-oscilloscope" in response.data
     assert b"cw-icon-cluster-settings" in response.data
+    assert response.data.count(b"cw-icon-footprints") == 7
     assert b"0/5 complete" in response.data and b"5/5 remaining" in response.data
-    assert b"0/1 complete" in response.data and b"1/1 remaining" in response.data
+    assert b"0/2 complete" in response.data and b"2/2 remaining" in response.data
+    assert b'id="pre-cluster-workflow" class="collapse show"' in response.data
+    assert b'id="cluster-base-workflow" class="collapse"' in response.data
     assert b'id="workflow-run-01" class="btn btn-outline-secondary"' in response.data
-    assert response.data.count(b"Show script") == 5
-    assert response.data.count(b"Full screen") == 5
+    assert response.data.count(b"Show script") == 6
+    assert response.data.count(b"Full screen") == 6
     assert b'id="script-viewer"' in response.data
     assert b'id="project-configuration" class="collapse show"' in response.data
     assert b"cw-icon-settings" in response.data
@@ -171,7 +176,11 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert (root / ".git").exists()
     project_list = client.get("/")
     assert b'class="clickable-row"' in project_list.data
-    assert b"Hypervisor" in project_list.data and b"N/A" in project_list.data
+    assert b"Hypervisor/HW" in project_list.data and b"Dell" in project_list.data
+    assert b'class="project-name">DB2 PROD' in project_list.data
+    assert b'class="cluster-name"><span>Cluster:</span> db2-prod' in project_list.data
+    assert b'class="project-notes text-truncate" title="Test"' in project_list.data
+    assert b'class="btn btn-primary d-inline-flex align-items-center gap-2"' in project_list.data
     assert b"cw-icon-projects" in project_list.data
     assert b"cw-icon-search" in project_list.data
     assert b">01</td>" in project_list.data
@@ -571,6 +580,8 @@ def test_remote_network_check_is_available_from_gui(client, app, monkeypatch):
     assert b"Cluster Base Installation and Configuration" in project_page.data
     assert b'id="workflow-run-05" class="btn btn-success"' in project_page.data
     assert b"5/5 complete" in project_page.data
+    assert b'id="pre-cluster-workflow" class="collapse"' in project_page.data
+    assert b'id="cluster-base-workflow" class="collapse show"' in project_page.data
     package_install = client.post(f"{project_url}/run-package-install", data={
         "package-install-password": "temporary", "package-install-confirm": "y",
     })
@@ -578,6 +589,15 @@ def test_remote_network_check_is_available_from_gui(client, app, monkeypatch):
     assert b"Base cluster package installation" in package_install.data
     assert "INSTALLER=dnf" in captured["script"]
     assert 'rpm -q "${package}"' in captured["script"]
+    project_page = client.get(project_url)
+    assert b'id="workflow-run-06" class="btn btn-success"' in project_page.data
+    assert b"1/2 complete" in project_page.data and b"1/2 remaining" in project_page.data
+    pcsd = client.post(f"{project_url}/run-pcsd-auth", data={
+        "pcsd-auth-password": "temporary", "pcsd-auth-confirm": "y",
+    })
+    assert pcsd.status_code == 200 and b"pcsd service and host authentication" in pcsd.data
+    assert "systemctl enable --now pcsd.service" in captured["script"]
+    assert "node01lanc" in captured["script"]
 
 
 def test_copy_script_has_http_fallback(client):
