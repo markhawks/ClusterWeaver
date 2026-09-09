@@ -73,15 +73,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const platform = document.getElementById("platform_type");
   const hypervisor = document.getElementById("hypervisor");
   const hypervisorField = document.getElementById("hypervisor-field");
-  if (platform && hypervisor && hypervisorField) {
-    const updateHypervisor = () => {
+  const hardware = document.getElementById("hardware");
+  const hardwareField = document.getElementById("hardware-field");
+  if (platform && hypervisor && hypervisorField && hardware && hardwareField) {
+    const updatePlatformFields = () => {
       const virtual = platform.value === "virtual";
       hypervisorField.classList.toggle("d-none", !virtual);
       hypervisor.disabled = !virtual;
       hypervisor.required = virtual;
+      hardwareField.classList.toggle("d-none", virtual);
+      hardware.disabled = virtual;
+      hardware.required = !virtual;
     };
-    platform.addEventListener("change", updateHypervisor);
-    updateHypervisor();
+    platform.addEventListener("change", updatePlatformFields);
+    updatePlatformFields();
   }
   if (!major || !minor || !releases) return;
 

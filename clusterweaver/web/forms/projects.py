@@ -40,12 +40,31 @@ class ProjectForm(FlaskForm):
         default="kvm",
         validators=[Optional()],
     )
+    hardware = SelectField(
+        "Hardware",
+        choices=[("", "Select hardware"), ("dell", "Dell"), ("cisco", "Cisco")],
+        validators=[Optional()],
+    )
     node_count = IntegerField("Expected node count", default=2, validators=[DataRequired(), NumberRange(min=1, max=64)])
     submit = SubmitField("Save project")
 
     def validate_hypervisor(self, field) -> None:
         if self.platform_type.data == "virtual" and not field.data:
             raise ValidationError("Select an hypervisor for a virtual project.")
+
+    def validate_hardware(self, field) -> None:
+        if self.platform_type.data == "physical" and not field.data:
+            raise ValidationError("Select the hardware vendor for a physical project.")
+
+    def validate(self, extra_validators=None) -> bool:
+        valid = super().validate(extra_validators)
+        if self.platform_type.data == "virtual" and not self.hypervisor.data:
+            self.hypervisor.errors.append("Select a hypervisor for a virtual project.")
+            valid = False
+        if self.platform_type.data == "physical" and not self.hardware.data:
+            self.hardware.errors.append("Select the hardware vendor for a physical project.")
+            valid = False
+        return valid
 
 
 class ProjectImportForm(FlaskForm):

@@ -179,6 +179,7 @@ def create_project():
             rhel_minor=form.rhel_minor.data.strip() if form.rhel_minor.data else "",
             platform_type=form.platform_type.data,
             hypervisor=form.hypervisor.data if form.platform_type.data == "virtual" else "",
+            hardware=form.hardware.data if form.platform_type.data == "physical" else "",
             node_count=form.node_count.data,
         )
         db.session.commit()
@@ -447,6 +448,7 @@ def edit_project(project_id: int):
         record.rhel_minor = form.rhel_minor.data.strip() if form.rhel_minor.data else ""
         record.platform_type = form.platform_type.data
         record.hypervisor = form.hypervisor.data if form.platform_type.data == "virtual" else ""
+        record.hardware = form.hardware.data if form.platform_type.data == "physical" else ""
         record.node_count = form.node_count.data
         record.updated_at = datetime.now(timezone.utc)
         db.session.commit()

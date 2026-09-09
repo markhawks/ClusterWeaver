@@ -115,12 +115,24 @@ def test_new_project_suggests_two_node_ha_examples(client):
     assert b'<option selected value="virtual">Virtual</option>' in response.data
     assert b'<option selected value="kvm">KVM</option>' in response.data
     assert b'>VMware</option>' in response.data and b'>Proxmox</option>' in response.data
+    assert b'id="hardware-field"' in response.data
+    assert b'<option value="dell">Dell</option>' in response.data
+    assert b'<option value="cisco">Cisco</option>' in response.data
+
+
+def test_physical_project_requires_supported_hardware(client):
+    rejected = client.post("/projects/new", data={
+        "name": "Physical Cluster", "customer": "Lab", "rhel_major": "9", "rhel_minor": "8",
+        "platform_type": "physical", "node_count": "2",
+    }, follow_redirects=True)
+    assert b"Select the hardware vendor for a physical project" in rejected.data
+    assert b"Physical Cluster" not in client.get("/").data
 
 
 def test_project_creation_writes_database_yaml_and_git(client, app):
     response = client.post("/projects/new", data={
         "name": "DB2 PROD", "customer": "Example", "description": "Test",
-        "rhel_major": "9", "rhel_minor": "8", "platform_type": "physical", "node_count": "2",
+        "rhel_major": "9", "rhel_minor": "8", "platform_type": "physical", "hardware": "dell", "node_count": "2",
     }, follow_redirects=True)
     assert response.status_code == 200
     assert b"DB2 PROD" in response.data
@@ -149,6 +161,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"cw-icon-cluster" in response.data
     with app.app_context():
         assert db.session.query(ProjectRecord).count() == 1
+        assert db.session.query(ProjectRecord).one().hardware == "dell"
     root = app.config["PROJECTS_ROOT"]
     assert (root / "db2-prod" / "project.yaml").exists()
     assert (root / ".git").exists()
@@ -306,7 +319,7 @@ def test_node_creation_updates_generated_script(client, app):
 
 def test_invalid_ip_is_rejected(client):
     response = client.post("/projects/new", data={
-        "name": "IP Test", "customer": "Example", "rhel_major": "7", "rhel_minor": "9", "platform_type": "physical", "node_count": "1",
+        "name": "IP Test", "customer": "Example", "rhel_major": "7", "rhel_minor": "9", "platform_type": "physical", "hardware": "cisco", "node_count": "1",
     })
     response = client.post(f"{response.headers['Location']}/nodes/new", data={"hostname": "node01", "management_ip": "999.1.1.1"})
     assert b"Enter an IPv4 address with subnet prefix" in response.data
@@ -331,7 +344,7 @@ def test_hostname_is_limited_to_30_characters(client):
 
 def test_management_gateway_is_required_and_must_match_subnet(client):
     response = client.post("/projects/new", data={
-        "name": "Gateway Test", "customer": "Example", "rhel_major": "9", "rhel_minor": "8", "platform_type": "physical", "node_count": "1",
+        "name": "Gateway Test", "customer": "Example", "rhel_major": "9", "rhel_minor": "8", "platform_type": "physical", "hardware": "dell", "node_count": "1",
     })
     node_url = f"{response.headers['Location']}/nodes/new"
     page = client.get(node_url)
@@ -349,7 +362,7 @@ def test_management_gateway_is_required_and_must_match_subnet(client):
 
 def test_cluster_gateway_is_optional_but_requires_cluster_subnet(client):
     response = client.post("/projects/new", data={
-        "name": "Private Gateway Test", "customer": "Example", "rhel_major": "9", "rhel_minor": "8", "platform_type": "physical", "node_count": "1",
+        "name": "Private Gateway Test", "customer": "Example", "rhel_major": "9", "rhel_minor": "8", "platform_type": "physical", "hardware": "dell", "node_count": "1",
     })
     node_url = f"{response.headers['Location']}/nodes/new"
     response = client.post(node_url, data={

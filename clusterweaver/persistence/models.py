@@ -24,6 +24,7 @@ class ProjectRecord(Base):
     rhel_minor: Mapped[str] = mapped_column(String(20), default="")
     platform_type: Mapped[str] = mapped_column(String(20))
     hypervisor: Mapped[str] = mapped_column(String(20), default="")
+    hardware: Mapped[str] = mapped_column(String(20), default="")
     node_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

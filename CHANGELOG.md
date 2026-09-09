@@ -6,6 +6,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+- Added a physical hardware selector to project configuration, initially supporting Dell and Cisco systems.
 - Added guarded Step 00 NetworkManager configuration support for imported RHEL 9.8 projects, including remote release verification and the existing idempotency, rollback, backup, and formed-cluster protections.
 - Step 03 now removes obsolete or empty ClusterWeaver `/etc/hosts` blocks left by an imported copy of the same cluster, while preserving populated blocks for unrelated clusters.
 

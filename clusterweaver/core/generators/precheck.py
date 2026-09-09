@@ -14,6 +14,7 @@ def generate_precheck(project: ProjectData) -> str:
         f"echo {shlex.quote(f'Target OS: RHEL {project.rhel_major}.{project.rhel_minor}' if project.rhel_minor else f'Target OS: RHEL {project.rhel_major}')}",
         f"echo {shlex.quote(f'Platform: {project.platform_type}')}",
         f"echo {shlex.quote(f'Hypervisor: {project.hypervisor or "not applicable"}')}",
+        f"echo {shlex.quote(f'Hardware: {project.hardware or "not applicable"}')}",
         "",
         'echo "=== Local system information ==="',
         "hostnamectl 2>/dev/null || hostname",

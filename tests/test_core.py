@@ -18,7 +18,7 @@ def sample_project():
     now = datetime.now(timezone.utc)
     return ProjectData(
         uuid=uuid4(), name="DB2 PROD", slug="db2-prod", customer="Example", description="Database cluster",
-        rhel_major=9, rhel_minor="8", platform_type="physical", node_count=2,
+        rhel_major=9, rhel_minor="8", platform_type="physical", hardware="dell", node_count=2,
         nodes=[NodeData(hostname="node01", nodename="node01lanc", fqdn="node01.example.test", site="Firenze", management_ip="10.0.0.11/24", management_gateway="10.0.0.1", cluster_ip="192.168.1.11/24", primary_interface="ens160", secondary_interface="ens224")],
         created_at=now, updated_at=now,
     )
@@ -131,6 +131,7 @@ def test_yaml_is_human_readable_and_round_trips(tmp_path):
     text = project_to_yaml(project)
     parsed = yaml.safe_load(text)
     assert parsed["project"]["os"] == {"distribution": "rhel", "major": 9, "minor": "8"}
+    assert parsed["project"]["hardware"] == "dell"
     assert parsed["nodes"][0]["hostname"] == "node01"
     assert parsed["nodes"][0]["nodename"] == "node01lanc"
     assert parsed["nodes"][0]["primary_interface"] == "ens160"

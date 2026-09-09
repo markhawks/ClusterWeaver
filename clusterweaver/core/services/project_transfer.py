@@ -144,12 +144,17 @@ def _validate_project_document(document) -> dict:
         raise ProjectTransferError("Invalid expected node count.")
     platform_type = _text(project.get("platform_type"), "platform", required=True, maximum=20)
     hypervisor = _text(project.get("hypervisor"), "hypervisor", maximum=20)
+    hardware = _text(project.get("hardware"), "hardware", maximum=20)
     if platform_type not in {"physical", "virtual"}:
         raise ProjectTransferError("Unsupported platform type.")
     if platform_type == "virtual" and hypervisor not in {"vmware", "kvm", "proxmox"}:
         raise ProjectTransferError("Unsupported or missing hypervisor.")
     if platform_type == "physical":
         hypervisor = ""
+        if hardware and hardware not in {"dell", "cisco"}:
+            raise ProjectTransferError("Unsupported hardware platform.")
+    else:
+        hardware = ""
     normalized_nodes = []
     seen_hostnames: set[str] = set()
     seen_ips: set[str] = set()
@@ -206,7 +211,7 @@ def _validate_project_document(document) -> dict:
             "customer": _text(project.get("customer"), "customer", required=True, maximum=160),
             "description": _text(project.get("description"), "description", maximum=5000),
             "rhel_major": major, "rhel_minor": minor, "platform_type": platform_type,
-            "hypervisor": hypervisor, "node_count": node_count,
+            "hypervisor": hypervisor, "hardware": hardware, "node_count": node_count,
         },
         "nodes": normalized_nodes,
     }

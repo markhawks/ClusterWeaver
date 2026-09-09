@@ -22,6 +22,7 @@ def to_domain(record: ProjectRecord) -> ProjectData:
         rhel_minor=record.rhel_minor,
         platform_type=record.platform_type,
         hypervisor=record.hypervisor,
+        hardware=record.hardware,
         node_count=record.node_count,
         created_at=record.created_at,
         updated_at=record.updated_at,

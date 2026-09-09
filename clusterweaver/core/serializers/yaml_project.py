@@ -23,6 +23,7 @@ def project_to_dict(project: ProjectData) -> dict:
             },
             "platform_type": project.platform_type,
             "hypervisor": project.hypervisor or "",
+            "hardware": project.hardware or "",
             "node_count": project.node_count,
             "created_at": project.created_at.isoformat() if project.created_at else None,
             "updated_at": project.updated_at.isoformat() if project.updated_at else None,

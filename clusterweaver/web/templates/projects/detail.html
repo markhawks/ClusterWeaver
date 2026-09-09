@@ -8,7 +8,7 @@
 {% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
-  <div><p class="text-secondary mb-1">{{ project.customer }}</p><h1 class="h2 mb-1">{{ project.name }}</h1><span class="badge text-bg-secondary">RHEL {{ project.rhel_major }}{% if project.rhel_minor %}.{{ project.rhel_minor }}{% endif %}</span> <span class="badge text-bg-light text-capitalize">{{ project.platform_type }}</span>{% if project.hypervisor %} <span class="badge text-bg-light">{{ {'vmware': 'VMware', 'kvm': 'KVM', 'proxmox': 'Proxmox'}.get(project.hypervisor, project.hypervisor) }}</span>{% endif %}</div>
+  <div><p class="text-secondary mb-1">{{ project.customer }}</p><h1 class="h2 mb-1">{{ project.name }}</h1><span class="badge text-bg-secondary">RHEL {{ project.rhel_major }}{% if project.rhel_minor %}.{{ project.rhel_minor }}{% endif %}</span> <span class="badge text-bg-light text-capitalize">{{ project.platform_type }}</span>{% if project.hypervisor %} <span class="badge text-bg-light">{{ {'vmware': 'VMware', 'kvm': 'KVM', 'proxmox': 'Proxmox'}.get(project.hypervisor, project.hypervisor) }}</span>{% endif %}{% if project.hardware %} <span class="badge text-bg-light">{{ {'dell': 'Dell', 'cisco': 'Cisco'}.get(project.hardware, project.hardware) }}</span>{% endif %}</div>
   <a class="btn btn-outline-primary" href="{{ url_for('projects.edit_project', project_id=project.id) }}">Edit project</a>
 </div>
 <div class="row g-4 mb-5">

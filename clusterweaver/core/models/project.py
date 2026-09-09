@@ -32,6 +32,7 @@ class ProjectData:
     node_count: int
     slug: str
     hypervisor: str = ""
+    hardware: str = ""
     nodes: list[NodeData] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
