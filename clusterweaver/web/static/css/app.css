@@ -29,6 +29,13 @@ body { background: #f4f6f8; }
 .workflow-description p { font-size: 1rem; line-height: 1.55; }
 .workflow-result-row + .workflow-result-row { border-top: 1px solid #eef0f2; padding-top: .5rem; }
 .workflow-status-icon { display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem; border: 1px solid currentColor; border-radius: 50%; font-weight: 700; }
+.workflow-phase-header { background: #e9ecef; color: #111820; border-bottom: 2px solid #adb5bd; }
+.workflow-phase-header small { color: #343a40; }
+.workflow-phase-icon { display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem; color: #111; background: #fff; border: 1px solid #343a40; border-radius: .45rem; }
+.workflow-phase-icon .cw-icon { width: 1.65rem; height: 1.65rem; }
+.phase-progress { font-size: .875rem; white-space: nowrap; }
+[data-bs-theme="dark"] .workflow-phase-header { background: #dfe3e6; color: #111820; }
+[data-bs-theme="dark"] .workflow-phase-header small { color: #343a40; }
 .bootstrap-operation-column + .bootstrap-operation-column { border-top: 1px solid #dee2e6; }
 .cw-icon { width: 1.05rem; height: 1.05rem; flex: 0 0 auto; vertical-align: -.15em; }
 h1 .cw-icon { width: 1.45rem; height: 1.45rem; }

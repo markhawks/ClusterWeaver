@@ -8,6 +8,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 - Added a physical hardware selector to project configuration, initially supporting Dell and Cisco systems.
 - Split the workflow into collapsible pre-cluster and cluster-base phases, and added gated remote step 05 package installation with MPS `osupdate` selection, standard `dnf` selection, idempotent detection, and RPM verification.
+- Added high-contrast phase headers, monochrome oscilloscope and cluster-settings icons, and persistent completed/remaining progress counters for collapsed workflow phases.
 - Added guarded Step 00 NetworkManager configuration support for imported RHEL 9.8 projects, including remote release verification and the existing idempotency, rollback, backup, and formed-cluster protections.
 - Step 03 now removes obsolete or empty ClusterWeaver `/etc/hosts` blocks left by an imported copy of the same cluster, while preserving populated blocks for unrelated clusters.
 

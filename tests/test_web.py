@@ -152,6 +152,10 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Generated workflow" in response.data
     assert b"Step 00" in response.data
     assert b"SSH discovery" in response.data and b"Peer SSH trust" in response.data and b"Network configuration" in response.data
+    assert b"cw-icon-oscilloscope" in response.data
+    assert b"cw-icon-cluster-settings" in response.data
+    assert b"0/5 complete" in response.data and b"5/5 remaining" in response.data
+    assert b"0/1 complete" in response.data and b"1/1 remaining" in response.data
     assert b'id="workflow-run-01" class="btn btn-outline-secondary"' in response.data
     assert response.data.count(b"Show script") == 5
     assert response.data.count(b"Full screen") == 5
@@ -566,6 +570,7 @@ def test_remote_network_check_is_available_from_gui(client, app, monkeypatch):
     assert b"Pre-Cluster Configuration" in project_page.data
     assert b"Cluster Base Installation and Configuration" in project_page.data
     assert b'id="workflow-run-05" class="btn btn-success"' in project_page.data
+    assert b"5/5 complete" in project_page.data
     package_install = client.post(f"{project_url}/run-package-install", data={
         "package-install-password": "temporary", "package-install-confirm": "y",
     })
