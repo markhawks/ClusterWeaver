@@ -10,7 +10,7 @@
 
 Strumento per la creazione e la gestione del ciclo di vita dei cluster Linux High Availability.
 
-Versione corrente: **0.1.7**. La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
+Versione corrente: **0.1.8**. La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
 
 ClusterWeaver è software libero distribuito con licenza [GNU Affero General Public License v3.0](LICENSE). Le versioni modificate offerte agli utenti attraverso una rete devono rendere disponibile il relativo codice sorgente con la stessa licenza. Per contribuire consulta [CONTRIBUTING.md](CONTRIBUTING.md) e [SECURITY.md](SECURITY.md).
 
@@ -96,6 +96,14 @@ Apri quindi `http://<ip-vm>:5000`. Se firewalld è attivo, occorre autorizzare a
 
 Il servizio installato `clusterweaver-control.service` esegue `/opt/clusterweaver/app` usando il virtual environment `/opt/clusterweaver/venv`. Gunicorn viene eseguito con l’account non privilegiato `clusterweaver`, si avvia al boot, conserva lo stato in `/var/lib/clusterweaver` e legge la configurazione privata da `/etc/clusterweaver/clusterweaver.env`.
 
+Per provare le modifiche del repository locale sul servizio nativo senza ripetere un'installazione completa:
+
+```bash
+sudo ./setup/update-local.sh
+```
+
+Lo script conserva progetti e configurazione, esegue il backup di SQLite, applica le migrazioni, riavvia e verifica il servizio. Se la verifica fallisce ripristina automaticamente applicazione e database precedenti. Il virtual environment viene ricostruito solamente quando cambia `requirements.txt`.
+
 ## Architettura lato sistema operativo
 
 Nell’installazione raccomandata per RHEL 10.2 senza accesso a Internet, ClusterWeaver viene eseguito come container Podman gestito da systemd attraverso Quadlet:
@@ -120,7 +128,7 @@ La struttura sul sistema host è volutamente ridotta:
 /var/lib/clusterweaver/data/projects/             # progetti YAML e storico Git persistenti
 ```
 
-Il codice applicativo e le dipendenze Python sono contenuti nell’immagine OCI versionata, per esempio `localhost/clusterweaver:0.1.7`. Il container viene eseguito con UID non privilegiato `10001`, usa un filesystem applicativo in sola lettura, non possiede capability Linux, può scrivere solamente nella directory dati montata ed esegue un health check periodico. Sul server isolato Satellite fornisce soltanto i pacchetti RHEL richiesti; il bundle trasferito contiene l’immagine applicativa e non contatta GitHub, PyPI o registry esterni.
+Il codice applicativo e le dipendenze Python sono contenuti nell’immagine OCI versionata, per esempio `localhost/clusterweaver:0.1.8`. Il container viene eseguito con UID non privilegiato `10001`, usa un filesystem applicativo in sola lettura, non possiede capability Linux, può scrivere solamente nella directory dati montata ed esegue un health check periodico. Sul server isolato Satellite fornisce soltanto i pacchetti RHEL richiesti; il bundle trasferito contiene l’immagine applicativa e non contatta GitHub, PyPI o registry esterni.
 
 Comandi principali:
 
@@ -162,6 +170,10 @@ In produzione ogni progetto viene scritto in:
 ```text
 /var/lib/clusterweaver/data/projects/<slug-progetto>/project.yaml
 ```
+
+I file portabili `.cwp` possono anche essere depositati in `/var/lib/clusterweaver/data/Project-Import` e selezionati da **Projects → Import project → Import from server**. La directory può essere popolata manualmente oppure essere il working tree di un repository Git privato gestito separatamente. ClusterWeaver non conserva credenziali Git e non esegue `git pull`: legge solamente file `.cwp` regolari contenuti direttamente nella directory e applica le normali verifiche di checksum e schema.
+
+Le piccole modifiche applicative possono essere trasferite a un'installazione Podman isolata tramite pacchetti `.cwu` protetti da checksum. L'aggiornamento usa un mount applicativo in sola lettura, salva il database, verifica il servizio e applica il rollback automatico; il bundle OCI completo serve solamente quando cambiano dipendenze o immagine di base. La procedura è descritta in `setup/offline-container/README.md`.
 
 `data/projects/` viene inizializzata come repository Git locale separato. Le modifiche YAML significative producono commit; database SQLite, log e file YAML contenenti segreti sono esclusi. Gli script generati vengono mostrati per la revisione. Le password SSH sono utilizzate solamente in memoria e non vengono scritte nei dati del progetto o nei log.
 

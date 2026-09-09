@@ -7,12 +7,12 @@ These scripts install ClusterWeaver on RHEL or a compatible distribution using `
 Download `bootstrap.sh` onto an empty server and run:
 
 ```bash
-curl --fail --location --output bootstrap.sh https://raw.githubusercontent.com/markhawks/ClusterWeaver/v0.1.7/setup/bootstrap.sh
+curl --fail --location --output bootstrap.sh https://raw.githubusercontent.com/markhawks/ClusterWeaver/v0.1.8/setup/bootstrap.sh
 chmod 755 bootstrap.sh
 sudo bash bootstrap.sh
 ```
 
-It installs Git into the staging environment, checks out release `v0.1.7` in a temporary directory, deploys the application under `/opt`, and removes the temporary checkout. Override the release with `CLUSTERWEAVER_VERSION`.
+It installs Git into the staging environment, checks out release `v0.1.8` in a temporary directory, deploys the application under `/opt`, and removes the temporary checkout. Override the release with `CLUSTERWEAVER_VERSION`.
 
 ## Installation from an existing checkout
 
@@ -20,6 +20,18 @@ It installs Git into the staging environment, checks out release `v0.1.7` in a t
 cd /path/to/ClusterWeaver
 sudo ./setup/install.sh
 ```
+
+## Update the native installation from a local checkout
+
+After editing the checked-out source, deploy it to the local native installation with:
+
+```bash
+sudo ./setup/update-local.sh
+```
+
+The updater uses the current checkout without contacting GitHub. It stages the application, backs up SQLite, applies Alembic migrations, restarts the service, and runs the health check. When requirements change it builds and swaps a new virtual environment. A failed migration, restart, or health check restores the previous application, database, and virtual environment automatically.
+
+Server-side `.cwp` imports are read from `/var/lib/clusterweaver/data/Project-Import`. The installer creates this persistent directory with the service account as owner.
 
 Use `--no-firewall` to leave firewalld unchanged. By default, port `5000/tcp` is opened only when firewalld is already running.
 
@@ -48,7 +60,7 @@ sudo /opt/clusterweaver/app/setup/update.sh
 Update to a release tag:
 
 ```bash
-sudo /opt/clusterweaver/app/setup/update.sh v0.1.7
+sudo /opt/clusterweaver/app/setup/update.sh v0.1.8
 ```
 
 The updater downloads the selected release into a temporary checkout, invokes the idempotent installer, backs up the closed SQLite database under `/var/lib/clusterweaver/backups`, preserves the previous application tree under `/opt/clusterweaver/previous`, runs migrations, refreshes systemd, restarts the service, and runs the health check.

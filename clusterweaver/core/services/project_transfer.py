@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO
+import os
 import re
+import stat
 import tarfile
+from pathlib import Path
 
 import yaml
 
@@ -28,6 +31,44 @@ ALLOWED_MEMBERS = {
 
 class ProjectTransferError(ValueError):
     pass
+
+
+def list_server_archives(import_root: Path) -> list[dict]:
+    """List safe, directly contained .cwp files without following symlinks."""
+    archives = []
+    try:
+        entries = list(import_root.iterdir())
+    except OSError:
+        return archives
+    for entry in entries:
+        if entry.suffix.casefold() != ".cwp":
+            continue
+        try:
+            metadata = entry.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        if not stat.S_ISREG(metadata.st_mode) or not 0 < metadata.st_size <= MAX_ARCHIVE_SIZE:
+            continue
+        archives.append({"name": entry.name, "size": metadata.st_size, "modified_at": datetime.fromtimestamp(metadata.st_mtime, timezone.utc)})
+    return sorted(archives, key=lambda archive: (archive["modified_at"], archive["name"].casefold()), reverse=True)
+
+
+def open_server_archive(import_root: Path, archive_name: str):
+    """Open one direct child safely, preventing traversal and symlink substitution."""
+    if not archive_name or Path(archive_name).name != archive_name or not archive_name.casefold().endswith(".cwp"):
+        raise ProjectTransferError("Invalid server archive name.")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(import_root / archive_name, flags)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or not 0 < metadata.st_size <= MAX_ARCHIVE_SIZE:
+            os.close(descriptor)
+            raise ProjectTransferError("The selected server archive is empty, oversized, or not a regular file.")
+        return os.fdopen(descriptor, "rb")
+    except ProjectTransferError:
+        raise
+    except OSError as exc:
+        raise ProjectTransferError("The selected server archive is unavailable or unsafe.") from exc
 
 
 def _yaml_bytes(value: dict) -> bytes:

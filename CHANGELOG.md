@@ -6,6 +6,13 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-09
+
+- Added small `.cwu` code-only packages for disconnected Podman installations, with exact base-image validation, read-only application override, database backup, health verification, and automatic rollback.
+- Added secure server-side project import from the persistent `Project-Import` directory for disconnected environments and externally managed private Git working trees.
+- Added `setup/update-local.sh` for safe, fast deployment from a development checkout, including staged code/dependency swaps, database backup, migrations, verification, and automatic rollback.
+- Fixed the offline RHEL installer to accept usable DNF repositories without a Satellite identity, validate Podman components instead of requiring the `container-tools` metapackage, and start the generated Quadlet service without trying to enable it.
+
 ### Documentation
 
 - Added concise operating-system architecture diagrams and host/container layout descriptions to both English and Italian READMEs.

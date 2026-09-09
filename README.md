@@ -10,7 +10,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.7**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.8**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -96,6 +96,14 @@ Then open `http://<vm-ip>:5000`. If `firewalld` is active, TCP port 5000 must al
 
 The installed `clusterweaver-control.service` runs `/opt/clusterweaver/app` with its virtual environment at `/opt/clusterweaver/venv`. Gunicorn runs as the unprivileged `clusterweaver` account, starts at boot, stores state in `/var/lib/clusterweaver`, and reads private configuration from `/etc/clusterweaver/clusterweaver.env`.
 
+To test changes from the local checkout against the native service without repeating a complete installation:
+
+```bash
+sudo ./setup/update-local.sh
+```
+
+This preserves project data and configuration, backs up SQLite, applies migrations, restarts and verifies the service, and rolls back application/database changes if verification fails. It rebuilds the virtual environment only when `requirements.txt` changes.
+
 ## Operating-system architecture
 
 The recommended disconnected RHEL 10.2 deployment runs ClusterWeaver as a Podman container managed by systemd through Quadlet:
@@ -120,7 +128,7 @@ The host layout is deliberately small:
 /var/lib/clusterweaver/data/projects/             # persistent YAML projects and Git history
 ```
 
-Application code and Python dependencies are stored inside the versioned OCI image, for example `localhost/clusterweaver:0.1.7`. The container runs as unprivileged UID `10001`, has a read-only application filesystem, drops all Linux capabilities, writes only to the mounted data directory, and provides a periodic health check. On the disconnected target, Satellite supplies only the required RHEL packages; the transferred bundle supplies the application image without contacting GitHub, PyPI, or an external registry.
+Application code and Python dependencies are stored inside the versioned OCI image, for example `localhost/clusterweaver:0.1.8`. The container runs as unprivileged UID `10001`, has a read-only application filesystem, drops all Linux capabilities, writes only to the mounted data directory, and provides a periodic health check. On the disconnected target, Satellite supplies only the required RHEL packages; the transferred bundle supplies the application image without contacting GitHub, PyPI, or an external registry.
 
 It can be managed directly with systemd:
 
@@ -168,6 +176,10 @@ In production, each project is written to:
 ## Portable projects
 
 Each project can be exported from the Projects table as a portable `.cwp` archive and imported into another ClusterWeaver instance. Imports always create a new project with a new UUID and reset all remote execution state. The archive contains the editable project definition, generated workflow scripts, format metadata, and SHA-256 checksums; it excludes passwords, SSH keys, application secrets, execution logs, and step results.
+
+On disconnected installations, `.cwp` archives can also be placed in `/var/lib/clusterweaver/data/Project-Import` and selected through **Projects → Import project → Import from server**. The directory may be populated manually or used as the working tree of a separately managed private Git repository. ClusterWeaver never stores Git credentials or runs `git pull`; it only reads direct, regular `.cwp` files and applies the normal archive checksum and schema validation.
+
+Small application changes can be transported to an offline Podman installation as checksum-protected `.cwu` packages. They update a read-only application mount with database backup, health verification, and automatic rollback; a complete OCI bundle is required only for dependency or base-image changes. See `setup/offline-container/README.md`.
 
 Configuration can be overridden with:
 

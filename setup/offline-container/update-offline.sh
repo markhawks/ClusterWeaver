@@ -21,8 +21,8 @@ if [[ -f "${data_dir}/clusterweaver.db" ]]; then
 fi
 podman load --input "${archive}"
 install -o root -g root -m 0644 clusterweaver.container /etc/containers/systemd/clusterweaver.container
+install -o root -g root -m 0755 update-code.sh /usr/local/sbin/clusterweaver-update
 systemctl daemon-reload
 systemctl start clusterweaver.service
 "${bundle_dir}/verify.sh"
 trap - EXIT
-

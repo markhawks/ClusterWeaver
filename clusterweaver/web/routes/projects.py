@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_precheck
 from clusterweaver.core.services.projects import ProjectFileService
-from clusterweaver.core.services.project_transfer import ProjectTransferError, build_project_archive, read_project_archive
+from clusterweaver.core.services.project_transfer import ProjectTransferError, build_project_archive, list_server_archives, open_server_archive, read_project_archive
 from clusterweaver.core.services.changelog import read_changelog
 from clusterweaver.core.services.slugs import make_slug
 from clusterweaver.core.services.ssh_bootstrap import bootstrap_peer_keys, discover_node, run_remote_script
@@ -14,7 +14,7 @@ from clusterweaver.core.services.network_config import configure_node_network
 from clusterweaver.core.validators import host_address, validate_rhel_release
 from clusterweaver.persistence import db
 from clusterweaver.persistence.repositories import ProjectRepository
-from clusterweaver.web.forms import ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PrecheckRunForm, ProjectForm, ProjectImportForm, SSHDiscoveryForm, SSHKeyBootstrapForm
+from clusterweaver.web.forms import ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PrecheckRunForm, ProjectForm, ProjectImportForm, ServerProjectImportForm, SSHDiscoveryForm, SSHKeyBootstrapForm
 
 
 projects_bp = Blueprint("projects", __name__)
@@ -57,6 +57,20 @@ def persist_files(project_id: int, message: str) -> bool:
     service = ProjectFileService(current_app.config["PROJECTS_ROOT"])
     _path, committed = service.save(project, message)
     return committed
+
+
+def create_imported_project(imported: dict):
+    values = imported["project"]
+    source_name = values.pop("name")
+    imported_name = f"{source_name} (Imported)"
+    if len(imported_name) > 160:
+        imported_name = f"{source_name[:149].rstrip()} (Imported)"
+    record = repository().add_project(name=imported_name, slug=unique_slug(source_name), **values)
+    for node in imported["nodes"]:
+        repository().add_node(record, **node)
+    db.session.commit()
+    persist_files(record.id, f"Import {source_name} project")
+    return record
 
 
 def node_form_values(form: NodeForm) -> dict[str, str]:
@@ -133,11 +147,15 @@ def index():
         )
         for column in sort_keys
     }
+    server_archives = list_server_archives(current_app.config["PROJECT_IMPORT_ROOT"])
+    server_import_form = ServerProjectImportForm()
+    server_import_form.archive_name.choices = [(archive["name"], archive["name"]) for archive in server_archives]
     return render_template(
         "projects/index.html", projects=projects, project_numbers=project_numbers,
         search_column=search_column, search_term=search_term, sort=sort, direction=direction,
         sort_links=sort_links, remote_ready=remote_ready, remote_discovery_failed=remote_discovery_failed,
-        import_form=ProjectImportForm(),
+        import_form=ProjectImportForm(), server_import_form=server_import_form,
+        server_archives=server_archives, project_import_root=current_app.config["PROJECT_IMPORT_ROOT"],
     )
 
 
@@ -194,16 +212,7 @@ def import_project():
         return redirect(url_for("projects.index"))
     try:
         imported = read_project_archive(form.archive.data.stream)
-        values = imported["project"]
-        source_name = values.pop("name")
-        imported_name = f"{source_name} (Imported)"
-        if len(imported_name) > 160:
-            imported_name = f"{source_name[:149].rstrip()} (Imported)"
-        record = repository().add_project(name=imported_name, slug=unique_slug(source_name), **values)
-        for node in imported["nodes"]:
-            repository().add_node(record, **node)
-        db.session.commit()
-        persist_files(record.id, f"Import {source_name} project")
+        record = create_imported_project(imported)
     except ProjectTransferError as exc:
         db.session.rollback()
         flash(f"Project import failed: {exc}", "danger")
@@ -213,6 +222,29 @@ def import_project():
         flash("Project import failed because the archive contains conflicting data.", "danger")
         return redirect(url_for("projects.index"))
     flash("Project imported as a new project. Remote execution state was reset; run Step 00 before using it.", "success")
+    return redirect(url_for("projects.detail", project_id=record.id))
+
+
+@projects_bp.post("/projects/import/server")
+def import_project_from_server():
+    archives = list_server_archives(current_app.config["PROJECT_IMPORT_ROOT"])
+    form = ServerProjectImportForm()
+    form.archive_name.choices = [(archive["name"], archive["name"]) for archive in archives]
+    if not form.validate_on_submit():
+        flash("Select a valid .cwp archive from the server import directory.", "danger")
+        return redirect(url_for("projects.index"))
+    try:
+        with open_server_archive(current_app.config["PROJECT_IMPORT_ROOT"], form.archive_name.data) as archive:
+            record = create_imported_project(read_project_archive(archive))
+    except ProjectTransferError as exc:
+        db.session.rollback()
+        flash(f"Project import failed: {exc}", "danger")
+        return redirect(url_for("projects.index"))
+    except IntegrityError:
+        db.session.rollback()
+        flash("Project import failed because the archive contains conflicting data.", "danger")
+        return redirect(url_for("projects.index"))
+    flash(f"Project imported from server archive {form.archive_name.data}. Remote execution state was reset; run Step 00 before using it.", "success")
     return redirect(url_for("projects.detail", project_id=record.id))
 
 

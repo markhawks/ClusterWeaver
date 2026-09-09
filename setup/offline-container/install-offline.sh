@@ -20,12 +20,12 @@ source /etc/os-release
 cd "${bundle_dir}"
 sha256sum --check SHA256SUMS
 "${bundle_dir}/preflight.sh"
-dnf install -y container-tools openssl curl
+dnf install -y podman openssl curl
 archive="$(find "${bundle_dir}" -maxdepth 1 -type f -name 'clusterweaver-*.oci.tar' -print -quit)"
 [[ -n "${archive}" ]] || { echo "OCI image archive not found." >&2; exit 1; }
 podman load --input "${archive}"
 
-install -d -o 10001 -g 10001 -m 0755 "${data_dir}" "${data_dir}/projects"
+install -d -o 10001 -g 10001 -m 0755 "${data_dir}" "${data_dir}/projects" "${data_dir}/Project-Import"
 install -d -o root -g root -m 0755 "${quadlet_dir}"
 install -d -o root -g root -m 0750 "${environment_dir}"
 if [[ ! -f "${environment_file}" ]]; then
@@ -39,8 +39,9 @@ else
     echo "Preserved existing ${environment_file}."
 fi
 install -o root -g root -m 0644 clusterweaver.container "${quadlet_dir}/clusterweaver.container"
+install -o root -g root -m 0755 update-code.sh /usr/local/sbin/clusterweaver-update
 systemctl daemon-reload
-systemctl enable --now clusterweaver.service
+systemctl start clusterweaver.service
 
 if ((open_firewall)) && systemctl is-active --quiet firewalld; then
     firewall-cmd --permanent --add-port=5000/tcp

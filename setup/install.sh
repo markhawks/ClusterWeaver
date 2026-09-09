@@ -30,7 +30,7 @@ dnf install -y git python3 python3-pip openssl curl
 getent group "${service_group}" >/dev/null || groupadd --system "${service_group}"
 id "${service_user}" >/dev/null 2>&1 || useradd --system --gid "${service_group}" --home-dir "${data_root}" --create-home --shell /sbin/nologin "${service_user}"
 install -d -o root -g root -m 0755 "${install_root}" "${install_root}/previous"
-install -d -o "${service_user}" -g "${service_group}" -m 0755 "${data_root}" "${data_dir}" "${data_dir}/projects"
+install -d -o "${service_user}" -g "${service_group}" -m 0755 "${data_root}" "${data_dir}" "${data_dir}/projects" "${data_dir}/Project-Import"
 install -d -o root -g root -m 0700 "${backup_dir}"
 install -d -o root -g "${service_group}" -m 0750 "${environment_dir}"
 
@@ -49,7 +49,7 @@ if [[ ! -f "${environment_file}" ]]; then
     temporary_environment="$(mktemp)"
     {
         echo "CLUSTERWEAVER_SECRET_KEY=$(openssl rand -hex 32)"; echo "CLUSTERWEAVER_LOGIN_USERNAME=admin"; echo "CLUSTERWEAVER_LOGIN_PASSWORD=changeme"
-        echo "CLUSTERWEAVER_DATABASE_URL=sqlite:////var/lib/clusterweaver/data/clusterweaver.db"; echo "CLUSTERWEAVER_PROJECTS_ROOT=/var/lib/clusterweaver/data/projects"; echo "CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD="
+        echo "CLUSTERWEAVER_DATABASE_URL=sqlite:////var/lib/clusterweaver/data/clusterweaver.db"; echo "CLUSTERWEAVER_PROJECTS_ROOT=/var/lib/clusterweaver/data/projects"; echo "CLUSTERWEAVER_PROJECT_IMPORT_ROOT=/var/lib/clusterweaver/data/Project-Import"; echo "CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD="
     } >"${temporary_environment}"
     install -o root -g "${service_group}" -m 0640 "${temporary_environment}" "${environment_file}"
 else
@@ -57,6 +57,7 @@ else
     sed -i 's#/var/www/html/ClusterWeaver/data/projects#/var/lib/clusterweaver/data/projects#' "${environment_file}"
     grep -q '^CLUSTERWEAVER_DATABASE_URL=' "${environment_file}" || echo 'CLUSTERWEAVER_DATABASE_URL=sqlite:////var/lib/clusterweaver/data/clusterweaver.db' >>"${environment_file}"
     grep -q '^CLUSTERWEAVER_PROJECTS_ROOT=' "${environment_file}" || echo 'CLUSTERWEAVER_PROJECTS_ROOT=/var/lib/clusterweaver/data/projects' >>"${environment_file}"
+    grep -q '^CLUSTERWEAVER_PROJECT_IMPORT_ROOT=' "${environment_file}" || echo 'CLUSTERWEAVER_PROJECT_IMPORT_ROOT=/var/lib/clusterweaver/data/Project-Import' >>"${environment_file}"
     chown root:"${service_group}" "${environment_file}"; chmod 0640 "${environment_file}"
 fi
 

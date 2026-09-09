@@ -46,10 +46,10 @@ if command -v subscription-manager >/dev/null 2>&1; then
     if subscription-manager identity >/dev/null 2>&1; then
         pass "Red Hat subscription/Satellite identity is available"
     else
-        fail "subscription-manager cannot obtain the system identity"
+        warn "subscription-manager cannot obtain the system identity; enabled DNF repositories are checked separately"
     fi
 else
-    fail "subscription-manager is not installed"
+    warn "subscription-manager is not installed; enabled DNF repositories are checked separately"
 fi
 
 if command -v dnf >/dev/null 2>&1; then
@@ -58,7 +58,7 @@ if command -v dnf >/dev/null 2>&1; then
     else
         fail "no enabled DNF repository is available"
     fi
-    for package in container-tools openssl curl; do
+    for package in podman openssl curl; do
         if rpm -q "${package}" >/dev/null 2>&1; then
             pass "${package} is already installed"
         elif dnf -q list --available "${package}" >/dev/null 2>&1; then
@@ -105,9 +105,20 @@ else
 fi
 
 if command -v podman >/dev/null 2>&1; then
-    pass "Podman is already installed ($(podman --version 2>/dev/null))"
+    if podman info >/dev/null 2>&1; then
+        pass "Podman is operational ($(podman --version 2>/dev/null))"
+    else
+        fail "Podman is installed but 'podman info' failed"
+    fi
+    for component in crun netavark aardvark-dns; do
+        if rpm -q "${component}" >/dev/null 2>&1; then
+            pass "Podman component ${component} is installed"
+        else
+            fail "Podman component ${component} is not installed"
+        fi
+    done
 else
-    info "Podman is not installed yet; container-tools will provide it during installation"
+    info "Podman is not installed yet; the podman package and its dependencies will be installed from DNF"
 fi
 
 info "the installed portal will require inbound TCP/5000 from the administration LAN"

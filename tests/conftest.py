@@ -13,6 +13,7 @@ def app(tmp_path: Path):
         SECRET_KEY="test-secret",
         DATABASE_URL=f"sqlite:///{tmp_path / 'test.db'}",
         PROJECTS_ROOT=tmp_path / "projects",
+        PROJECT_IMPORT_ROOT=tmp_path / "Project-Import",
     )
     with application.app_context():
         Base.metadata.create_all(db.engine)
@@ -23,4 +24,3 @@ def app(tmp_path: Path):
 @pytest.fixture()
 def client(app):
     return app.test_client()
-

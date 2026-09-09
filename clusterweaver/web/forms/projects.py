@@ -51,3 +51,8 @@ class ProjectForm(FlaskForm):
 class ProjectImportForm(FlaskForm):
     archive = FileField("ClusterWeaver project archive", validators=[FileRequired()])
     submit = SubmitField("Import project")
+
+
+class ServerProjectImportForm(FlaskForm):
+    archive_name = SelectField("Archive available on server", validators=[DataRequired()])
+    submit = SubmitField("Import from server")

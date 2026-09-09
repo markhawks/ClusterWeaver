@@ -17,7 +17,10 @@ def create_app(config_object=Config, **overrides) -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config.from_object(config_object)
     app.config.update(overrides)
+    if "PROJECTS_ROOT" in overrides and "PROJECT_IMPORT_ROOT" not in overrides:
+        app.config["PROJECT_IMPORT_ROOT"] = Path(app.config["PROJECTS_ROOT"]).parent / "Project-Import"
     Path(app.config["PROJECTS_ROOT"]).mkdir(parents=True, exist_ok=True)
+    Path(app.config["PROJECT_IMPORT_ROOT"]).mkdir(parents=True, exist_ok=True)
     database_url = app.config["DATABASE_URL"]
     if database_url.startswith("sqlite:///"):
         Path(database_url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)

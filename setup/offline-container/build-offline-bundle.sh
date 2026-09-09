@@ -27,7 +27,7 @@ podman image inspect "${image}" >"${stage}/${bundle_name}/IMAGE-INSPECT.json"
 podman run --rm --entrypoint python "${image}" -m pip freeze >"${stage}/${bundle_name}/PYTHON-PACKAGES.txt"
 git rev-parse HEAD >"${stage}/${bundle_name}/SOURCE-COMMIT"
 
-for file in preflight.sh install-offline.sh update-offline.sh uninstall.sh verify.sh clusterweaver.container clusterweaver.env.example README.md; do
+for file in preflight.sh install-offline.sh update-offline.sh update-code.sh uninstall.sh verify.sh clusterweaver.container clusterweaver.env.example README.md; do
     cp "setup/offline-container/${file}" "${stage}/${bundle_name}/${file}"
 done
 sed -i "s/localhost\/clusterweaver:[0-9][0-9.]*/localhost\/clusterweaver:${version}/" "${stage}/${bundle_name}/clusterweaver.container"
@@ -35,7 +35,7 @@ chmod 0755 "${stage}/${bundle_name}"/*.sh
 (
     cd "${stage}/${bundle_name}"
     sha256sum clusterweaver-${version}.oci.tar clusterweaver.container clusterweaver.env.example \
-        preflight.sh install-offline.sh update-offline.sh uninstall.sh verify.sh README.md \
+        preflight.sh install-offline.sh update-offline.sh update-code.sh uninstall.sh verify.sh README.md \
         IMAGE-INSPECT.json PYTHON-PACKAGES.txt SOURCE-COMMIT >SHA256SUMS
 )
 tar -C "${stage}" -czf "${output_dir}/${bundle_name}.tar.gz" "${bundle_name}"

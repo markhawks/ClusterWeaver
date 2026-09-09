@@ -26,7 +26,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
     page = login_client.get("/login")
     assert b"ClusterWeaver project logo" in page.data
-    assert b"Version 0.1.7" in page.data
+    assert b"Version 0.1.8" in page.data
     assert b"remotely executes controlled workflows" in page.data
     assert b'<html lang="en" data-bs-theme="dark">' in page.data
     assert b'<body class="login-page">' in page.data
@@ -217,6 +217,44 @@ def test_project_import_rejects_modified_or_invalid_archive(client):
     }, content_type="multipart/form-data", follow_redirects=True)
     assert response.status_code == 200
     assert b"Project import failed" in response.data
+
+
+def test_project_can_be_imported_from_server_directory(client, app):
+    response = client.post("/projects/new", data={
+        "name": "Server Archive", "customer": "Example", "description": "Offline transfer",
+        "rhel_major": "10", "rhel_minor": "2", "platform_type": "virtual", "hypervisor": "kvm", "node_count": "2",
+    })
+    project_id = int(response.headers["Location"].rsplit("/", 1)[-1])
+    exported = client.get(f"/projects/{project_id}/export.cwp")
+    import_root = app.config["PROJECT_IMPORT_ROOT"]
+    archive_path = import_root / "offline-project.cwp"
+    archive_path.write_bytes(exported.data)
+
+    index = client.get("/")
+    assert b"Import from server" in index.data
+    assert b"offline-project.cwp" in index.data
+    imported = client.post(
+        "/projects/import/server", data={"archive_name": "offline-project.cwp"}, follow_redirects=True,
+    )
+    assert imported.status_code == 200
+    assert b"Project imported from server archive offline-project.cwp" in imported.data
+    with app.app_context():
+        assert db.session.query(ProjectRecord).count() == 2
+
+
+def test_server_import_rejects_unlisted_paths_and_ignores_symlinks(client, app, tmp_path):
+    import_root = app.config["PROJECT_IMPORT_ROOT"]
+    outside = tmp_path / "outside.cwp"
+    outside.write_bytes(b"not-an-archive")
+    (import_root / "linked.cwp").symlink_to(outside)
+
+    index = client.get("/")
+    assert b"linked.cwp" not in index.data
+    response = client.post(
+        "/projects/import/server", data={"archive_name": "../outside.cwp"}, follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Select a valid .cwp archive from the server import directory" in response.data
 
 
 def test_node_creation_updates_generated_script(client, app):

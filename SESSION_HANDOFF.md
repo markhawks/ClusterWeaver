@@ -6,8 +6,8 @@ Updated: 2026-09-07 (Europe/Rome)
 
 - Working directory: `/var/www/html/ClusterWeaver`
 - Git branch: `main`
-- Current released version: `0.1.7`
-- GitHub release: `https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.7`
+- Current released version: `0.1.8`
+- GitHub release: `https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.8`
 - Application version source: `clusterweaver/version.py`
 - Service: `clusterweaver-control`
 - Database migration head: `0010_user_theme`
@@ -94,7 +94,7 @@ Expected result: `46 passed`; native service and isolated release container heal
 - `.cwp` imports intentionally receive a new project UUID/ID and no Step execution records; Step 00 must be executed again on the destination environment.
 - `.cwp` exports never contain passwords, private SSH keys, application secrets, execution output, or workflow status.
 - The main GitHub `README.md` is English; `README_IT.md` is the complete Italian version. Both contain language navigation.
-- The 0.1.7 offline bundle is `dist/clusterweaver-0.1.7-linux-amd64-offline.tar.gz` with the adjacent `.sha256` file; both are attached to the GitHub release.
+- The 0.1.8 offline bundle is `dist/clusterweaver-0.1.8-linux-amd64-offline.tar.gz` with the adjacent `.sha256` file; both are attached to the GitHub release.
 
 ## Suggested next session start
 
@@ -102,12 +102,12 @@ Expected result: `46 passed`; native service and isolated release container heal
 2. Check `git status --short --branch` and the latest commit.
 3. Confirm native migration state with `source /etc/clusterweaver/clusterweaver.env` followed by `/opt/clusterweaver/venv/bin/alembic -c /opt/clusterweaver/app/alembic.ini current` from `/opt/clusterweaver/app`.
 4. Confirm the service with `systemctl is-active clusterweaver-control`.
-5. Run `.venv/bin/pytest -q` from the development checkout before the next change; expected result is 46 passed.
+5. Run `.venv/bin/pytest -q` from the development checkout before the next change; expected result is 54 passed.
 
 ## Next-session priority: remote Podman test
 
-1. Download both 0.1.7 release assets on a connected workstation and transfer them to the RHEL 10.2 x86_64 server through the approved channel.
-2. On the remote server run `sha256sum -c clusterweaver-0.1.7-linux-amd64-offline.tar.gz.sha256`, extract the archive, run `sudo ./preflight.sh`, then run `sudo ./install-offline.sh` from the extracted directory.
+1. Download the required 0.1.8 release assets on a connected workstation and transfer them to the RHEL 10.2 x86_64 server through the approved channel.
+2. For a complete installation, verify and extract `clusterweaver-0.1.8-linux-amd64-offline.tar.gz`, then run `sudo ./preflight.sh` and `sudo ./install-offline.sh`.
 3. Verify `systemctl status clusterweaver.service`, `podman healthcheck run clusterweaver`, port TCP/5000, SELinux enforcing mode, and login with initial `admin` / `changeme`; change the password immediately.
 4. Export a populated project as `.cwp` from the local instance, transfer it to the remote instance, import it, and confirm:
    - the imported project name ends in `(Imported)`;
@@ -117,6 +117,13 @@ Expected result: `46 passed`; native service and isolated release container heal
    - project fields can be changed for the customer environment.
 5. Export the adjusted project from the remote instance and import it back locally to validate the reverse path.
 6. After portability testing, continue the generated workflow after Step 04 and exercise Steps 00–04 end-to-end on the two-node RHEL 10.2 KVM test cluster.
+
+## Work released in 0.1.8
+
+- Added secure server-side `.cwp` import from `/var/lib/clusterweaver/data/Project-Import`.
+- Added `setup/update-local.sh` for fast native deployment with backup, verification, and rollback.
+- Added official small `.cwu` updates for disconnected Podman servers, with checksums, exact base-image validation, read-only code mount, database backup, health verification, and rollback.
+- Corrected Satellite, Podman component, and Quadlet startup checks in the offline installer.
 
 ## Work released in 0.1.4
 

@@ -12,6 +12,7 @@ class Config:
         f"sqlite:///{BASE_DIR / 'data' / 'clusterweaver.db'}",
     )
     PROJECTS_ROOT = Path(os.environ.get("CLUSTERWEAVER_PROJECTS_ROOT", BASE_DIR / "data" / "projects"))
+    PROJECT_IMPORT_ROOT = Path(os.environ.get("CLUSTERWEAVER_PROJECT_IMPORT_ROOT", PROJECTS_ROOT.parent / "Project-Import"))
     CHANGELOG_PATH = Path(os.environ.get("CLUSTERWEAVER_CHANGELOG_PATH", BASE_DIR / "CHANGELOG.md"))
     HOST = os.environ.get("CLUSTERWEAVER_HOST", "127.0.0.1")
     PORT = int(os.environ.get("CLUSTERWEAVER_PORT", "5000"))
