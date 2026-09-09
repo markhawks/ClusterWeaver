@@ -4,7 +4,7 @@ from io import BytesIO
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
 from sqlalchemy.exc import IntegrityError
 
-from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_precheck
+from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_precheck
 from clusterweaver.core.services.projects import ProjectFileService
 from clusterweaver.core.services.project_transfer import ProjectTransferError, build_project_archive, list_server_archives, open_server_archive, read_project_archive
 from clusterweaver.core.services.changelog import read_changelog
@@ -14,7 +14,7 @@ from clusterweaver.core.services.network_config import SUPPORTED_NETWORK_CONFIG_
 from clusterweaver.core.validators import host_address, validate_rhel_release
 from clusterweaver.persistence import db
 from clusterweaver.persistence.repositories import ProjectRepository
-from clusterweaver.web.forms import ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PrecheckRunForm, ProjectForm, ProjectImportForm, ServerProjectImportForm, SSHDiscoveryForm, SSHKeyBootstrapForm
+from clusterweaver.web.forms import ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PackageInstallRunForm, PrecheckRunForm, ProjectForm, ProjectImportForm, ServerProjectImportForm, SSHDiscoveryForm, SSHKeyBootstrapForm
 
 
 projects_bp = Blueprint("projects", __name__)
@@ -197,6 +197,7 @@ def export_project(project_id: int):
         "02-network-check.sh": generate_network_check(project),
         "03-hosts-update.sh": generate_hosts_update(project),
         "04-network-connectivity.sh": generate_network_connectivity(project),
+        "05-package-install.sh": generate_package_install(project),
     }
     archive = build_project_archive(project, scripts)
     return send_file(
@@ -264,11 +265,12 @@ def detail(project_id: int):
         "02": workflow_step_complete(project, workflow_results, "01"),
         "03": workflow_step_complete(project, workflow_results, "02"),
         "04": workflow_step_complete(project, workflow_results, "03"),
+        "05": all(workflow_step_complete(project, workflow_results, step) for step in ("00a", "00b", "00c", "01", "02", "03", "04")),
     }
-    workflow_failed = {step: workflow_step_failed(project, workflow_results, step) for step in ("01", "02", "03", "04")}
+    workflow_failed = {step: workflow_step_failed(project, workflow_results, step) for step in ("01", "02", "03", "04", "05")}
     network_form = NetworkApplyForm()
     network_form.node_id.choices = [(node.id, f"{node.hostname} · {node.bootstrap_ip or 'no bootstrap IP'}") for node in project.nodes]
-    return render_template("projects/detail.html", project=project, script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]))
+    return render_template("projects/detail.html", project=project, script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), package_script=generate_package_install(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), package_install_form=PackageInstallRunForm(prefix="package-install"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]))
 
 
 @projects_bp.post("/projects/<int:project_id>/run-prechecks")
@@ -354,6 +356,28 @@ def run_network_connectivity(project_id: int):
     repository().save_step_results(project_id, "04", results)
     db.session.commit()
     return render_template("projects/ssh_results.html", project=project, results=results, title="Remote cluster network connectivity", changed=False)
+
+
+@projects_bp.post("/projects/<int:project_id>/run-package-install")
+def run_package_install(project_id: int):
+    project = project_or_404(project_id)
+    form = PackageInstallRunForm(prefix="package-install")
+    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    if not form.validate_on_submit() or not password:
+        flash("Password and explicit confirmation are required to install cluster packages.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
+        flash("Configure an SSH bootstrap IP on every node before installing cluster packages.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    workflow_results = repository().step_results(project_id)
+    if not all(workflow_step_complete(project, workflow_results, step) for step in ("00a", "00b", "00c", "01", "02", "03", "04")):
+        flash("Every step from 00 through 04 must pass on every node before running step 05.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    script = generate_package_install(project)
+    results = [run_remote_script(node, password, script) for node in project.nodes]
+    repository().save_step_results(project_id, "05", results)
+    db.session.commit()
+    return render_template("projects/ssh_results.html", project=project, results=results, title="Base cluster package installation", changed=True)
 
 
 @projects_bp.post("/projects/<int:project_id>/ssh-discovery")
@@ -573,3 +597,10 @@ def download_network_connectivity(project_id: int):
     project = project_or_404(project_id)
     content = generate_network_connectivity(project).encode("utf-8")
     return send_file(BytesIO(content), mimetype="text/x-shellscript", as_attachment=True, download_name="04-network-connectivity.sh")
+
+
+@projects_bp.get("/projects/<int:project_id>/package-install.sh")
+def download_package_install(project_id: int):
+    project = project_or_404(project_id)
+    content = generate_package_install(project).encode("utf-8")
+    return send_file(BytesIO(content), mimetype="text/x-shellscript", as_attachment=True, download_name="05-package-install.sh")

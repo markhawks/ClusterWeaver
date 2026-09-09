@@ -90,6 +90,7 @@ def create_app(config_object=Config, **overrides) -> Flask:
                 "projects.export_project",
                 "projects.download_precheck", "projects.download_network_check",
                 "projects.download_hosts_update", "projects.download_network_connectivity",
+                "projects.download_package_install",
                 "settings.configuration", "settings.change_password", "auth.logout",
             }
             allowed_posts = {"settings.change_password", "settings.change_theme", "auth.logout"}

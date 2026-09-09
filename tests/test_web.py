@@ -153,8 +153,8 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Step 00" in response.data
     assert b"SSH discovery" in response.data and b"Peer SSH trust" in response.data and b"Network configuration" in response.data
     assert b'id="workflow-run-01" class="btn btn-outline-secondary"' in response.data
-    assert response.data.count(b"Show script") == 4
-    assert response.data.count(b"Full screen") == 4
+    assert response.data.count(b"Show script") == 5
+    assert response.data.count(b"Full screen") == 5
     assert b'id="script-viewer"' in response.data
     assert b'id="project-configuration" class="collapse show"' in response.data
     assert b"cw-icon-settings" in response.data
@@ -563,6 +563,16 @@ def test_remote_network_check_is_available_from_gui(client, app, monkeypatch):
     assert "EXPECTED_RELEASE=10.2" in captured["script"]
     project_page = client.get(project_url)
     assert b'data-for-collapse="connectivity-collapse"' in project_page.data
+    assert b"Pre-Cluster Configuration" in project_page.data
+    assert b"Cluster Base Installation and Configuration" in project_page.data
+    assert b'id="workflow-run-05" class="btn btn-success"' in project_page.data
+    package_install = client.post(f"{project_url}/run-package-install", data={
+        "package-install-password": "temporary", "package-install-confirm": "y",
+    })
+    assert package_install.status_code == 200
+    assert b"Base cluster package installation" in package_install.data
+    assert "INSTALLER=dnf" in captured["script"]
+    assert 'rpm -q "${package}"' in captured["script"]
 
 
 def test_copy_script_has_http_fallback(client):

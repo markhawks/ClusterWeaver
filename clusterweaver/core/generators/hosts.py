@@ -41,7 +41,7 @@ def generate_hosts_update(project: ProjectData) -> str:
         'ACTUAL_RELEASE="$(. /etc/os-release 2>/dev/null; printf %s "${VERSION_ID:-unknown}")"',
         'if [[ "${ACTUAL_RELEASE}" != "${EXPECTED_RELEASE}" ]]; then echo "FAIL: detected release ${ACTUAL_RELEASE}, expected RHEL ${EXPECTED_RELEASE}." >&2; exit 1; fi',
         'echo "PASS: RHEL ${EXPECTED_RELEASE} detected."',
-        'TEMP_FILE="$(mktemp /etc/hosts.clusterweaver.XXXXXX)"',
+        'TEMP_FILE="$(mktemp "${HOSTS_FILE}.clusterweaver.XXXXXX")"',
         'trap \'rm -f "${TEMP_FILE}"\' EXIT',
         f"MANAGED_IPS={shlex.quote(ips)}", f"MANAGED_NAMES={shlex.quote(names)}", "",
         "awk -v marker=\"${MARKER}\" -v ips=\"${MANAGED_IPS}\" -v names=\"${MANAGED_NAMES}\" '",

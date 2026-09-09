@@ -5,7 +5,7 @@ from uuid import uuid4
 from types import SimpleNamespace
 import yaml
 
-from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_precheck
+from clusterweaver.core.generators import generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_precheck
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
@@ -227,6 +227,23 @@ def test_rhel_102_hosts_update_is_supported_and_release_guarded():
     assert "EXPECTED_RELEASE=10.2" in script
     assert "RHEL ${EXPECTED_RELEASE} detected" in script
     assert "not yet supported" not in script
+
+
+def test_package_install_uses_osupdate_for_mps_and_verifies_every_rpm():
+    project = sample_project()
+    project.customer = "MPS"
+    script = generate_package_install(project)
+    assert "INSTALLER=osupdate" in script
+    assert '"${INSTALLER}" install "${PACKAGES[@]}" -y' in script
+    for package in ("pcs", "pacemaker", "fence-agents-all", "pcp-zeroconf"):
+        assert package in script
+    assert 'rpm -q "${package}"' in script
+
+
+def test_package_install_uses_dnf_for_other_customers():
+    project = sample_project()
+    project.customer = "Example"
+    assert "INSTALLER=dnf" in generate_package_install(project)
 
 
 def test_network_connectivity_checks_peer_route_ping_mtu_and_duplicates():

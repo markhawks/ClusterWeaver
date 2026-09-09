@@ -40,3 +40,9 @@ class HostsUpdateRunForm(FlaskForm):
 class ConnectivityRunForm(FlaskForm):
     password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
     submit = SubmitField("Run on all nodes")
+
+
+class PackageInstallRunForm(FlaskForm):
+    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    confirm = BooleanField("I understand that this installs cluster packages on every node.", validators=[DataRequired()])
+    submit = SubmitField("Install on all nodes")
