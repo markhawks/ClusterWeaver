@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import shlex
+import subprocess
 from uuid import uuid4
 from types import SimpleNamespace
 import yaml
@@ -181,6 +183,36 @@ def test_hosts_update_uses_private_ips_nodenames_and_safety_guards():
     assert 'MARKER=\'ClusterWeaver ' in script
     assert 'echo "# BEGIN ${MARKER}"' in script
     assert "EUID" in script
+
+
+def test_hosts_update_replaces_imported_project_block_and_preserves_other_clusters(tmp_path):
+    project = sample_project()
+    hosts_file = tmp_path / "hosts"
+    backup_root = tmp_path / "backups"
+    hosts_file.write_text(
+        "127.0.0.1 localhost\n"
+        "# BEGIN ClusterWeaver old-project-id\n"
+        "192.168.1.11 node01lanc\n"
+        "# END ClusterWeaver old-project-id\n"
+        "# BEGIN ClusterWeaver another-cluster\n"
+        "172.16.0.11 othernode\n"
+        "# END ClusterWeaver another-cluster\n"
+    )
+    script = generate_hosts_update(project)
+    script = script.replace('HOSTS_FILE="/etc/hosts"', f"HOSTS_FILE={shlex.quote(str(hosts_file))}")
+    script = script.replace('BACKUP_ROOT="/root/clusterweaver-backups/hosts"', f"BACKUP_ROOT={shlex.quote(str(backup_root))}")
+    script = script.replace(
+        'ACTUAL_RELEASE="$(. /etc/os-release 2>/dev/null; printf %s "${VERSION_ID:-unknown}")"',
+        'ACTUAL_RELEASE="${EXPECTED_RELEASE}"',
+    )
+    completed = subprocess.run(["bash"], input=script, text=True, capture_output=True, check=False)
+    assert completed.returncode == 0, completed.stderr
+    updated = hosts_file.read_text()
+    assert "old-project-id" not in updated
+    assert f"# BEGIN ClusterWeaver {project.uuid}" in updated
+    assert "192.168.1.11 node01lanc" in updated
+    assert "# BEGIN ClusterWeaver another-cluster" in updated
+    assert "172.16.0.11 othernode" in updated
 
 
 def test_rhel_102_hosts_update_is_supported_and_release_guarded():

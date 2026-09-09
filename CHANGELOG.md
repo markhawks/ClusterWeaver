@@ -7,6 +7,7 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 ## [Unreleased]
 
 - Added guarded Step 00 NetworkManager configuration support for imported RHEL 9.8 projects, including remote release verification and the existing idempotency, rollback, backup, and formed-cluster protections.
+- Step 03 now removes obsolete ClusterWeaver `/etc/hosts` blocks belonging to an imported copy of the same cluster, while preserving blocks for unrelated clusters.
 
 ## [0.1.8] - 2026-09-09
 
