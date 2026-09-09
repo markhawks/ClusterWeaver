@@ -83,9 +83,10 @@ def test_network_apply_is_noop_when_configuration_is_compliant(monkeypatch):
         raise AssertionError(f"Unexpected modifying command: {command}")
 
     monkeypatch.setattr("clusterweaver.core.services.network_config._run", fake_run)
-    result = configure_node_network(network_node(), "secret")
+    result = configure_node_network(network_node(), "secret", expected_release="9.8")
     assert result.ok
     assert "already compliant" in result.output
+    assert any('${VERSION_ID}" = 9.8' in command for command in calls)
     assert not any("connection add" in command for command in calls)
     assert not any("systemd-run" in command for command in calls)
 

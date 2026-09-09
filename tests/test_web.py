@@ -431,7 +431,7 @@ def test_ssh_discovery_uses_bootstrap_endpoint_without_echoing_password(client, 
 
 def test_network_apply_requires_confirmation_and_updates_bootstrap_ip(client, app, monkeypatch):
     project = client.post("/projects/new", data={
-        "name": "Network Apply", "customer": "Lab", "rhel_major": "10", "rhel_minor": "2",
+        "name": "Network Apply", "customer": "Lab", "rhel_major": "9", "rhel_minor": "8",
         "platform_type": "virtual", "hypervisor": "kvm", "node_count": "1",
     })
     project_url = project.headers["Location"]
@@ -444,11 +444,16 @@ def test_network_apply_requires_confirmation_and_updates_bootstrap_ip(client, ap
         node_id = db.session.query(NodeRecord.id).scalar()
     mark_step_00_complete(app, through="00b")
     fake = SimpleNamespace(hostname="node01", endpoint="192.168.124.11:22", ok=True, output="configured", rollback_pending=False)
-    monkeypatch.setattr("clusterweaver.web.routes.projects.configure_node_network", lambda node, password: fake)
+    captured = {}
+    def fake_network_config(node, password, *, expected_release):
+        captured["expected_release"] = expected_release
+        return fake
+    monkeypatch.setattr("clusterweaver.web.routes.projects.configure_node_network", fake_network_config)
     rejected = client.post(f"{project_url}/network-apply", data={"node_id": node_id, "password": "temporary"}, follow_redirects=True)
     assert b"confirm the network change" in rejected.data
     applied = client.post(f"{project_url}/network-apply", data={"node_id": node_id, "password": "temporary", "confirm": "y"})
     assert b"configured" in applied.data
+    assert captured["expected_release"] == "9.8"
     with app.app_context():
         assert db.session.get(NodeRecord, node_id).bootstrap_ip == "192.168.124.11"
 

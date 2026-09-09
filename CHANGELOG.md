@@ -6,6 +6,8 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+- Added guarded Step 00 NetworkManager configuration support for imported RHEL 9.8 projects, including remote release verification and the existing idempotency, rollback, backup, and formed-cluster protections.
+
 ## [0.1.8] - 2026-09-09
 
 - Added small `.cwu` code-only packages for disconnected Podman installations, with exact base-image validation, read-only application override, database backup, health verification, and automatic rollback.

@@ -10,7 +10,7 @@ from clusterweaver.core.services.project_transfer import ProjectTransferError, b
 from clusterweaver.core.services.changelog import read_changelog
 from clusterweaver.core.services.slugs import make_slug
 from clusterweaver.core.services.ssh_bootstrap import bootstrap_peer_keys, discover_node, run_remote_script
-from clusterweaver.core.services.network_config import configure_node_network
+from clusterweaver.core.services.network_config import SUPPORTED_NETWORK_CONFIG_RELEASES, configure_node_network
 from clusterweaver.core.validators import host_address, validate_rhel_release
 from clusterweaver.persistence import db
 from clusterweaver.persistence.repositories import ProjectRepository
@@ -406,8 +406,10 @@ def network_apply(project_id: int):
     if not form.validate_on_submit() or not password:
         flash("Select a node, provide credentials, and confirm the network change.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
-    if record.rhel_major != 10 or record.rhel_minor != "2":
-        flash("Automated network configuration is currently limited to RHEL 10.2.", "danger")
+    expected_release = f"{record.rhel_major}.{record.rhel_minor}"
+    if expected_release not in SUPPORTED_NETWORK_CONFIG_RELEASES:
+        supported = ", ".join(f"RHEL {release}" for release in sorted(SUPPORTED_NETWORK_CONFIG_RELEASES))
+        flash(f"Automated network configuration is currently available for {supported}.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     node_record = next((node for node in record.nodes if node.id == form.node_id.data), None)
     if node_record is None:
@@ -418,7 +420,7 @@ def network_apply(project_id: int):
         flash("SSH discovery and peer SSH trust must pass before applying network configuration.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     node = next(item for item in project.nodes if item.id == node_record.id)
-    result = configure_node_network(node, password)
+    result = configure_node_network(node, password, expected_release=expected_release)
     if result.ok:
         node_record.bootstrap_ip = host_address(node_record.management_ip)
         record.updated_at = datetime.now(timezone.utc)

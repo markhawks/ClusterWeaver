@@ -9,6 +9,9 @@ from clusterweaver.core.services.ssh_bootstrap import _connect, _run
 from clusterweaver.core.validators import host_address
 
 
+SUPPORTED_NETWORK_CONFIG_RELEASES = frozenset({"9.8", "10.2"})
+
+
 @dataclass(slots=True)
 class NetworkConfigResult:
     hostname: str
@@ -22,7 +25,13 @@ def _command(*arguments: str) -> str:
     return shlex.join(arguments)
 
 
-def configure_node_network(node, password: str, rollback_seconds: int = 90) -> NetworkConfigResult:
+def configure_node_network(
+    node,
+    password: str,
+    rollback_seconds: int = 90,
+    *,
+    expected_release: str = "10.2",
+) -> NetworkConfigResult:
     """Apply NetworkManager profiles with timed management rollback and reconnect verification."""
     required = {
         "management IP/subnet": node.management_ip,
@@ -33,6 +42,9 @@ def configure_node_network(node, password: str, rollback_seconds: int = 90) -> N
     endpoint = f"{node.bootstrap_ip or '<not configured>'}:{node.ssh_port or 22}"
     if missing:
         return NetworkConfigResult(node.hostname, endpoint, False, "Missing " + ", ".join(missing) + ".")
+    if expected_release not in SUPPORTED_NETWORK_CONFIG_RELEASES:
+        supported = ", ".join(f"RHEL {release}" for release in sorted(SUPPORTED_NETWORK_CONFIG_RELEASES))
+        return NetworkConfigResult(node.hostname, endpoint, False, f"Unsupported network configuration target. Supported releases: {supported}.")
 
     log: list[str] = []
     client = None
@@ -45,10 +57,18 @@ def configure_node_network(node, password: str, rollback_seconds: int = 90) -> N
     private_block_reason = ""
     try:
         client, _fingerprint = _connect(node, password)
-        release_check = "source /etc/os-release && test \"${ID}\" = rhel && test \"${VERSION_ID}\" = 10.2"
+        release_check = (
+            'source /etc/os-release && test "${ID}" = rhel && '
+            f'test "${{VERSION_ID}}" = {shlex.quote(expected_release)}'
+        )
         status, output = _run(client, release_check)
         if status != 0:
-            return NetworkConfigResult(node.hostname, endpoint, False, "Remote node is not verified as RHEL 10.2.\n" + output)
+            return NetworkConfigResult(
+                node.hostname,
+                endpoint,
+                False,
+                f"Remote node is not verified as RHEL {expected_release}.\n" + output,
+            )
         for interface in filter(None, [node.primary_interface, node.secondary_interface]):
             status, output = _run(client, _command("ip", "link", "show", "dev", interface))
             if status != 0:
