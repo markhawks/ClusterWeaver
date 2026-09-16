@@ -32,6 +32,9 @@ class ProjectData:
     node_count: int
     slug: str
     cluster_name: str = ""
+    group_id: int | None = None
+    group_name: str = ""
+    group_color: str = ""
     hypervisor: str = ""
     hardware: str = ""
     nodes: list[NodeData] = field(default_factory=list)

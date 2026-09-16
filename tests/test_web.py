@@ -1,7 +1,7 @@
 from clusterweaver.persistence import db
 from clusterweaver import create_app
 from clusterweaver.persistence.database import Base
-from clusterweaver.persistence.models import NodeRecord, ProjectRecord, StepExecutionRecord, UserRecord
+from clusterweaver.persistence.models import NodeRecord, ProjectGroupRecord, ProjectRecord, StepExecutionRecord, UserRecord
 from config import TestConfig
 import subprocess
 from io import BytesIO
@@ -26,7 +26,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
     page = login_client.get("/login")
     assert b"ClusterWeaver project logo" in page.data
-    assert b"Version 0.1.9" in page.data
+    assert b"Version 0.1.10" in page.data
     assert b"remotely executes controlled workflows" in page.data
     assert b'<html lang="en" data-bs-theme="dark">' in page.data
     assert b'<body class="login-page">' in page.data
@@ -66,6 +66,7 @@ def test_role_permissions_and_user_configuration(tmp_path):
     assert b"available only to administrators" in client.get("/configuration").data
     assert client.get("/projects/new").status_code == 403
     assert client.post("/projects/new", data={}).status_code == 403
+    assert client.post("/projects/1/delete", data={}).status_code == 403
     assert client.post("/configuration/users", data={}).status_code == 403
 
     client.post("/logout")
@@ -80,6 +81,10 @@ def test_role_permissions_and_user_configuration(tmp_path):
     assert b"Create user" in configuration.data and b"Access roles" in configuration.data
     assert b"Password last changed" in configuration.data
     assert b"Soft dark grey" in configuration.data
+    assert b'class="btn btn-primary"' in configuration.data
+    assert b'class="btn btn-danger"' in configuration.data
+    assert b"btn-outline-primary" not in configuration.data
+    assert b"btn-outline-danger" not in configuration.data
     themed = client.post("/configuration/theme", data={"theme-theme": "light"}, follow_redirects=True)
     assert b"Interface theme updated" in themed.data
     assert b'data-bs-theme="light"' in themed.data
@@ -129,6 +134,63 @@ def test_physical_project_requires_supported_hardware(client):
     assert b"Physical Cluster" not in client.get("/").data
 
 
+def test_project_groups_are_unique_selectable_and_rendered_on_home(client, app):
+    new_group = client.get("/groups/new")
+    assert new_group.status_code == 200
+    assert b'type="color"' in new_group.data
+    created = client.post("/groups/new", data={
+        "name": "PostgreSQL", "description": "PostgreSQL HA clusters", "color": "#198754",
+    }, follow_redirects=True)
+    assert b"Project group PostgreSQL created." in created.data
+    assert b"PostgreSQL" in created.data and b"0 projects" in created.data
+
+    duplicate = client.post("/groups/new", data={
+        "name": "postgresql", "description": "Duplicate", "color": "#0d6efd",
+    }, follow_redirects=True)
+    assert b"A project group with this name already exists." in duplicate.data
+
+    with app.app_context():
+        group = db.session.query(ProjectGroupRecord).one()
+        group_id = group.id
+        assert group.color == "#198754"
+
+    project_form = client.get("/projects/new")
+    assert b'value="0">Ungrouped</option>' in project_form.data
+    assert f'<option value="{group_id}">PostgreSQL</option>'.encode() in project_form.data
+    project = client.post("/projects/new", data={
+        "name": "PG PROD", "customer": "Example", "description": "Primary database",
+        "group_id": str(group_id), "rhel_major": "10", "rhel_minor": "2",
+        "platform_type": "virtual", "hypervisor": "kvm", "node_count": "2",
+    })
+    assert project.status_code == 302
+
+    home = client.get("/")
+    assert b"Project Groups" in home.data
+    assert b"PostgreSQL" in home.data and b"1 project" in home.data
+    assert b"PG PROD" in home.data and b'id="group-' in home.data
+    assert f'id="group-{group_id}" class="collapse"'.encode() in home.data
+    assert f'data-bs-target="#group-{group_id}" aria-expanded="false"'.encode() in home.data
+    assert b"project-group-heading-name" in home.data
+    assert b"group-collapse-chevron" in home.data and b"cw-icon-chevron" in home.data
+    assert b"cw-icon-group" in home.data and b"project-entry-icon" in home.data
+    assert b"Hide" not in home.data and b"Show" not in home.data
+    app_script = client.get("/static/js/app.js")
+    assert b'!toggle.classList.contains("collapse-toggle")' in app_script.data
+
+    projects = client.get("/projects?column=group&q=PostgreSQL&sort=group&direction=asc")
+    assert b">Group" in projects.data
+    assert b"PG PROD" in projects.data and b"PostgreSQL" in projects.data
+    assert b"Sorted asc" in projects.data
+
+    renamed = client.post(f"/groups/{group_id}/edit", data={
+        "name": "Postgres", "description": "Renamed group", "color": "#6f42c1",
+    }, follow_redirects=True)
+    assert b"Project group Postgres updated." in renamed.data
+    with app.app_context():
+        group = db.session.get(ProjectGroupRecord, group_id)
+        assert group.name == "Postgres" and group.color == "#6f42c1"
+
+
 def test_project_creation_writes_database_yaml_and_git(client, app):
     response = client.post("/projects/new", data={
         "name": "DB2 PROD", "customer": "Example", "description": "Test",
@@ -148,9 +210,10 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Changelog" in response.data and b"Changelog <small" not in response.data
     assert b"Configuration" in response.data and b"About ClusterWeaver" in response.data
     assert b"github.com/markhawks/ClusterWeaver" in response.data and b"Author: Mark Hawks" in response.data and b"Gunicorn" in response.data
-    assert "ClusterWeaver</strong><span>– Version 0.1.9</span>".encode() in response.data
+    assert "ClusterWeaver</strong><span>– Version 0.1.10</span>".encode() in response.data
     assert b"Linux High Availability Cluster Builder &amp; Lifecycle Manager" in response.data
     assert b'rel="icon"' in response.data
+    assert b'/static/css/app.css?v=' in response.data and b'/static/js/app.js?v=' in response.data
     assert b"Generated workflow" in response.data
     assert b"Step 00" in response.data
     assert b"SSH discovery" in response.data and b"Peer SSH trust" in response.data and b"Network configuration" in response.data
@@ -166,6 +229,8 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert response.data.count(b"Full screen") == 7
     assert b'id="script-viewer"' in response.data
     assert b'id="project-configuration" class="collapse show"' in response.data
+    assert b'class="btn btn-primary" href="/projects/' in response.data
+    assert b"btn-outline-primary" not in response.data
     assert b"cw-icon-settings" in response.data
     assert b"cw-icon-cluster" in response.data
     with app.app_context():
@@ -174,7 +239,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     root = app.config["PROJECTS_ROOT"]
     assert (root / "db2-prod" / "project.yaml").exists()
     assert (root / ".git").exists()
-    project_list = client.get("/")
+    project_list = client.get("/projects")
     assert b'class="clickable-row"' in project_list.data
     assert b"Hypervisor/HW" in project_list.data and b"Dell" in project_list.data
     assert b'class="project-name">DB2 PROD' in project_list.data
@@ -183,17 +248,58 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b'class="btn btn-primary d-inline-flex align-items-center gap-2"' in project_list.data
     assert b"cw-icon-projects" in project_list.data
     assert b"cw-icon-search" in project_list.data
+    assert b'btn btn-primary d-inline-flex justify-content-center align-items-center gap-2' in project_list.data
+    assert b"cw-icon-open" in project_list.data
+    assert b"cw-icon-export" in project_list.data
+    assert b"cw-icon-delete" in project_list.data
+    assert project_list.data.index(b"> Open</a>") < project_list.data.index(b"> Export</a>") < project_list.data.index(b"> Delete</button>")
+    assert b"btn btn-sm btn-primary" in project_list.data
+    assert b"btn btn-sm btn-warning" in project_list.data
+    assert b"btn btn-sm btn-danger" in project_list.data
     assert b">01</td>" in project_list.data
     assert b"Remote Ready" in project_list.data and b"Remote setup incomplete" in project_list.data
     assert b'<thead><tr><th class="text-center"><a' in project_list.data
     assert b"Project number" in project_list.data
-    filtered = client.get("/?column=customer&q=Example&sort=name&direction=asc")
+    filtered = client.get("/projects?column=customer&q=Example&sort=name&direction=asc")
     assert b"DB2 PROD" in filtered.data and b"Sorted asc" in filtered.data
-    no_match = client.get("/?column=name&q=does-not-exist")
+    no_match = client.get("/projects?column=name&q=does-not-exist")
     assert b"No matching projects" in no_match.data
     assert b'role="link"' in project_list.data
     history = subprocess.run(["git", "log", "--oneline"], cwd=root, check=True, capture_output=True, text=True)
     assert "Create DB2 PROD project" in history.stdout
+
+
+def test_project_delete_removes_database_state_and_versions_file_removal(client, app):
+    response = client.post("/projects/new", data={
+        "name": "Disposable HA", "customer": "Example", "description": "Delete test",
+        "rhel_major": "10", "rhel_minor": "2", "platform_type": "virtual", "hypervisor": "kvm", "node_count": "1",
+    })
+    project_id = int(response.headers["Location"].rsplit("/", 1)[-1])
+    client.post(f"/projects/{project_id}/nodes/new", data={
+        "hostname": "delete01", "nodename": "delete01", "fqdn": "delete01.example.test", "site": "Lab",
+        "management_ip": "192.168.124.31/24", "management_gateway": "192.168.124.1",
+        "cluster_ip": "192.168.200.31/24", "cluster_gateway": "192.168.200.1",
+        "primary_interface": "enp1s0", "secondary_interface": "enp7s0", "bootstrap_ip": "192.168.124.131", "ssh_port": "22",
+    })
+    with app.app_context():
+        node = db.session.query(NodeRecord).filter_by(project_id=project_id).one()
+        db.session.add(StepExecutionRecord(project_id=project_id, node_id=node.id, step="00a", status="pass", output="done"))
+        db.session.commit()
+
+    root = app.config["PROJECTS_ROOT"]
+    assert (root / "disposable-ha" / "project.yaml").exists()
+    deleted = client.post(f"/projects/{project_id}/delete", follow_redirects=True)
+    assert deleted.status_code == 200
+    assert b"Project Disposable HA deleted." in deleted.data
+    assert b'class="project-name">Disposable HA' not in deleted.data
+    assert not (root / "disposable-ha").exists()
+    with app.app_context():
+        assert db.session.query(ProjectRecord).count() == 0
+        assert db.session.query(NodeRecord).count() == 0
+        assert db.session.query(StepExecutionRecord).count() == 0
+    history = subprocess.run(["git", "log", "--oneline", "-1"], cwd=root, check=True, capture_output=True, text=True)
+    assert "Delete Disposable HA project" in history.stdout
+    assert client.post(f"/projects/{project_id}/delete").status_code == 404
 
 
 def test_project_export_and_import_create_safe_editable_copy(client, app):
@@ -232,7 +338,7 @@ def test_project_export_and_import_create_safe_editable_copy(client, app):
         assert len(projects[1].nodes) == 1
         assert projects[1].nodes[0].management_ip == "192.168.124.11/24"
         assert db.session.query(StepExecutionRecord).filter_by(project_id=projects[1].id).count() == 0
-    index = client.get("/")
+    index = client.get("/projects")
     assert b"Import project" in index.data
     assert b"cw-icon-import" in index.data and b"cw-icon-export" in index.data
 
@@ -256,7 +362,7 @@ def test_project_can_be_imported_from_server_directory(client, app):
     archive_path = import_root / "offline-project.cwp"
     archive_path.write_bytes(exported.data)
 
-    index = client.get("/")
+    index = client.get("/projects")
     assert b"Import from server" in index.data
     assert b"offline-project.cwp" in index.data
     imported = client.post(
@@ -274,7 +380,7 @@ def test_server_import_rejects_unlisted_paths_and_ignores_symlinks(client, app, 
     outside.write_bytes(b"not-an-archive")
     (import_root / "linked.cwp").symlink_to(outside)
 
-    index = client.get("/")
+    index = client.get("/projects")
     assert b"linked.cwp" not in index.data
     response = client.post(
         "/projects/import/server", data={"archive_name": "../outside.cwp"}, follow_redirects=True,
@@ -451,7 +557,7 @@ def test_ssh_discovery_uses_bootstrap_endpoint_without_echoing_password(client, 
     failed_page = client.get(project_url)
     assert b'id="bootstrap-run-00a" class="btn btn-sm btn-danger"' in failed_page.data
     assert b"</span> Failed</button>" in failed_page.data
-    project_list = client.get("/")
+    project_list = client.get("/projects")
     assert b'text-danger" role="img" aria-label="SSH bootstrap discovery failed"' in project_list.data
 
 
@@ -509,7 +615,7 @@ def test_remote_prechecks_run_from_gui_and_report_per_node(client, app, monkeypa
         "bootstrap_ip": "192.168.124.11", "ssh_port": "22",
     })
     mark_step_00_complete(app)
-    assert b'aria-label="Remote ready"' in client.get("/").data
+    assert b'aria-label="Remote ready"' in client.get("/projects").data
     page = client.get(project_url)
     assert b"Run on nodes" in page.data and b'id="precheck-run-dialog"' in page.data
     assert b'id="workflow-run-01" class="btn btn-success"' in page.data

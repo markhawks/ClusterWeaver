@@ -6,6 +6,14 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-09-16
+
+- Added Project Groups with case-insensitive unique names, optional descriptions, selectable identifying colors, project assignment, group-aware search and sorting, and a collapsible Home dashboard with group and ungrouped project counters.
+- Added color-coded Open, Export, and Delete project actions; project deletion is confirmed, role/CSRF protected, cascades database state, and versions the YAML removal in the local project Git history.
+- Aligned the Projects search action with the primary blue interface buttons.
+- Project Group sections now start collapsed, retain their names while toggling, distinguish groups from projects with document icons, and use icon-only expand indicators.
+- Aligned project and Configuration actions with the solid primary and danger button palette.
+
 ## [0.1.9] - 2026-09-09
 
 - Added an editable Pacemaker cluster name with safe project-name defaults, portable import/export support, and step 07 cluster creation, startup, membership, WaitForAll, and quorum verification.

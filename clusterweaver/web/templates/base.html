@@ -7,16 +7,16 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}">
   <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css', v=static_asset_version) }}" rel="stylesheet">
 </head>
 <body{% if request.endpoint == 'auth.login' %} class="login-page"{% endif %}>
   {% if request.endpoint != 'auth.login' %}
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
       <button class="btn border-0 p-0 me-2" type="button" data-bs-toggle="modal" data-bs-target="#about-clusterweaver" title="About ClusterWeaver"><img class="brand-logo" src="{{ url_for('static', filename='img/clusterweaver-sphere-logo.png') }}" alt="ClusterWeaver logo"></button>
-      <a class="navbar-brand clusterweaver-identity" href="{{ url_for('projects.index') }}" title="Return to project home"><strong>ClusterWeaver</strong><span>– Version {{ clusterweaver_version }}</span><span class="d-none d-xl-inline">– Linux High Availability Cluster Builder &amp; Lifecycle Manager</span></a>
+      <a class="navbar-brand clusterweaver-identity" href="{{ url_for('projects.home') }}" title="Return to project groups"><strong>ClusterWeaver</strong><span>– Version {{ clusterweaver_version }}</span><span class="d-none d-xl-inline">– Linux High Availability Cluster Builder &amp; Lifecycle Manager</span></a>
       <div class="d-flex flex-grow-1 align-items-center justify-content-end gap-3">
-        <a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('projects.index') }}">{{ icon('home') }} <span>Home</span></a>
+        <a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('projects.home') }}">{{ icon('home') }} <span>Home</span></a>
         <a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('projects.index') }}">{{ icon('projects') }} <span>Project</span></a>
         {% if session.get('authenticated') or config.LOGIN_DISABLED %}<a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('settings.configuration') }}">{{ icon('settings') }} <span>Configuration</span></a>{% endif %}
         <a class="nav-link text-light d-inline-flex align-items-center gap-2 text-nowrap" href="{{ url_for('projects.changelog') }}">{{ icon('notebook') }} <span>Changelog</span></a>
@@ -46,6 +46,6 @@
     </div></div>
   </div>{% endif %}
   <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js', v=static_asset_version) }}"></script>
 </body>
 </html>

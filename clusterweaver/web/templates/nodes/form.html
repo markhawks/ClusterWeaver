@@ -2,7 +2,7 @@
 {% block title %}{{ title }} · ClusterWeaver{% endblock %}
 {% block navigation %}
 <nav class="d-flex justify-content-between align-items-center mb-3" aria-label="Breadcrumb">
-  <ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{{ url_for('projects.index') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.name }}</a></li><li class="breadcrumb-item active" aria-current="page">{{ title }}</li></ol>
+  <ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{{ url_for('projects.home') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('projects.index') }}">Projects</a></li><li class="breadcrumb-item"><a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.name }}</a></li><li class="breadcrumb-item active" aria-current="page">{{ title }}</li></ol>
   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('projects.index') }}">← All projects</a>
 </nav>
 {% endblock %}

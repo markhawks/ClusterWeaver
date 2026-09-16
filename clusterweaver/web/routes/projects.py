@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from io import BytesIO
+import secrets
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
 from sqlalchemy.exc import IntegrityError
@@ -14,10 +15,11 @@ from clusterweaver.core.services.network_config import SUPPORTED_NETWORK_CONFIG_
 from clusterweaver.core.validators import host_address, validate_rhel_release
 from clusterweaver.persistence import db
 from clusterweaver.persistence.repositories import ProjectRepository
-from clusterweaver.web.forms import ClusterSetupRunForm, ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PackageInstallRunForm, PcsdAuthRunForm, PrecheckRunForm, ProjectForm, ProjectImportForm, ServerProjectImportForm, SSHDiscoveryForm, SSHKeyBootstrapForm
+from clusterweaver.web.forms import ClusterSetupRunForm, ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PackageInstallRunForm, PcsdAuthRunForm, PrecheckRunForm, ProjectDeleteForm, ProjectForm, ProjectGroupForm, ProjectImportForm, ServerProjectImportForm, SSHDiscoveryForm, SSHKeyBootstrapForm
 
 
 projects_bp = Blueprint("projects", __name__)
+GROUP_COLORS = ("#0d6efd", "#6f42c1", "#d63384", "#dc3545", "#fd7e14", "#198754", "#0dcaf0", "#6c757d")
 
 
 def repository() -> ProjectRepository:
@@ -39,6 +41,10 @@ def project_or_404(project_id: int):
     if project is None:
         abort(404)
     return project
+
+
+def set_group_choices(form: ProjectForm) -> None:
+    form.group_id.choices = [(0, "Ungrouped"), *[(group.id, group.name) for group in repository().list_groups()]]
 
 
 def workflow_step_complete(project, results: dict, step: str) -> bool:
@@ -88,6 +94,18 @@ def add_conflict_errors(form: NodeForm, project_id: int, excluding_id: int | Non
 
 
 @projects_bp.get("/")
+def home():
+    projects = repository().list()
+    groups = repository().list_groups()
+    grouped = [
+        {"group": group, "projects": [project for project in projects if project.group_id == group.id]}
+        for group in groups
+    ]
+    ungrouped = [project for project in projects if project.group_id is None]
+    return render_template("projects/home.html", grouped=grouped, ungrouped=ungrouped)
+
+
+@projects_bp.get("/projects")
 def index():
     projects = repository().list()
     remote_results = {project.id: repository().step_results(project.id) for project in projects}
@@ -103,7 +121,7 @@ def index():
     project_numbers = {project.id: position for position, project in enumerate(oldest_first, start=1)}
     search_column = request.args.get("column", "all")
     search_term = request.args.get("q", "").strip()
-    allowed_columns = {"all", "number", "name", "customer", "target", "created", "updated"}
+    allowed_columns = {"all", "number", "name", "group", "customer", "target", "created", "updated"}
     if search_column not in allowed_columns:
         search_column = "all"
 
@@ -111,6 +129,7 @@ def index():
         return {
             "number": f"{project_numbers[project.id]:02d}",
             "name": project.name,
+            "group": project.group_name or "Ungrouped",
             "customer": project.customer,
             "target": f"RHEL {project.rhel_major}.{project.rhel_minor}" if project.rhel_minor else f"RHEL {project.rhel_major}",
             "created": project.created_at.astimezone().strftime("%d/%m/%Y %H:%M"),
@@ -129,6 +148,7 @@ def index():
     sort_keys = {
         "number": lambda project: project_numbers[project.id],
         "name": lambda project: project.name.casefold(),
+        "group": lambda project: (project.group_name or "Ungrouped").casefold(),
         "customer": lambda project: project.customer.casefold(),
         "target": lambda project: (project.rhel_major, project.rhel_minor),
         "created": lambda project: (project.created_at, project.id or 0),
@@ -155,6 +175,7 @@ def index():
         search_column=search_column, search_term=search_term, sort=sort, direction=direction,
         sort_links=sort_links, remote_ready=remote_ready, remote_discovery_failed=remote_discovery_failed,
         import_form=ProjectImportForm(), server_import_form=server_import_form,
+        delete_form=ProjectDeleteForm(),
         server_archives=server_archives, project_import_root=current_app.config["PROJECT_IMPORT_ROOT"],
     )
 
@@ -168,12 +189,14 @@ def changelog():
 @projects_bp.route("/projects/new", methods=["GET", "POST"])
 def create_project():
     form = ProjectForm()
+    set_group_choices(form)
     if form.validate_on_submit():
         validate_rhel_release(form.rhel_major.data, form.rhel_minor.data)
         record = repository().add_project(
             name=form.name.data.strip(),
             slug=unique_slug(form.name.data),
             cluster_name=(form.cluster_name.data or make_slug(form.name.data))[:64].strip(),
+            group_id=form.group_id.data or None,
             customer=form.customer.data.strip(),
             description=form.description.data.strip() if form.description.data else "",
             rhel_major=form.rhel_major.data,
@@ -188,6 +211,58 @@ def create_project():
         flash("Project created.", "success")
         return redirect(url_for("projects.detail", project_id=record.id))
     return render_template("projects/form.html", form=form, title="New project")
+
+
+@projects_bp.route("/groups/new", methods=["GET", "POST"])
+def create_group():
+    form = ProjectGroupForm()
+    if request.method == "GET":
+        form.color.data = secrets.choice(GROUP_COLORS)
+    if form.validate_on_submit():
+        name = form.name.data.strip()
+        if repository().group_name_exists(name):
+            form.name.errors.append("A project group with this name already exists.")
+        else:
+            try:
+                repository().add_group(
+                    name=name, normalized_name=name.casefold(),
+                    description=(form.description.data or "").strip(), color=form.color.data.lower(),
+                )
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                form.name.errors.append("A project group with this name already exists.")
+            else:
+                flash(f"Project group {name} created.", "success")
+                return redirect(url_for("projects.home"))
+    return render_template("projects/group_form.html", form=form, title="New project group")
+
+
+@projects_bp.route("/groups/<int:group_id>/edit", methods=["GET", "POST"])
+def edit_group(group_id: int):
+    group = repository().get_group(group_id)
+    if group is None:
+        abort(404)
+    form = ProjectGroupForm(obj=group)
+    if form.validate_on_submit():
+        name = form.name.data.strip()
+        if repository().group_name_exists(name, excluding_id=group.id):
+            form.name.errors.append("A project group with this name already exists.")
+        else:
+            group.name = name
+            group.normalized_name = name.casefold()
+            group.description = (form.description.data or "").strip()
+            group.color = form.color.data.lower()
+            group.updated_at = datetime.now(timezone.utc)
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                form.name.errors.append("A project group with this name already exists.")
+            else:
+                flash(f"Project group {name} updated.", "success")
+                return redirect(url_for("projects.home"))
+    return render_template("projects/group_form.html", form=form, title="Edit project group")
 
 
 @projects_bp.get("/projects/<int:project_id>/export.cwp")
@@ -207,6 +282,22 @@ def export_project(project_id: int):
         archive, mimetype="application/gzip", as_attachment=True,
         download_name=f"{project.slug}.cwp",
     )
+
+
+@projects_bp.post("/projects/<int:project_id>/delete")
+def delete_project(project_id: int):
+    form = ProjectDeleteForm()
+    if not form.validate_on_submit():
+        abort(400)
+    project = project_or_404(project_id)
+    ProjectFileService(current_app.config["PROJECTS_ROOT"]).delete(
+        project, f"Delete {project.name} project"
+    )
+    record = repository().get_record(project_id)
+    db.session.delete(record)
+    db.session.commit()
+    flash(f"Project {project.name} deleted.", "success")
+    return redirect(url_for("projects.index"))
 
 
 @projects_bp.post("/projects/import")
@@ -516,10 +607,12 @@ def edit_project(project_id: int):
     if record is None:
         abort(404)
     form = ProjectForm(obj=record)
+    set_group_choices(form)
     if form.validate_on_submit():
         validate_rhel_release(form.rhel_major.data, form.rhel_minor.data)
         record.name = form.name.data.strip()
         record.cluster_name = (form.cluster_name.data or make_slug(form.name.data))[:64].strip()
+        record.group_id = form.group_id.data or None
         record.customer = form.customer.data.strip()
         record.description = form.description.data.strip() if form.description.data else ""
         record.rhel_major = form.rhel_major.data

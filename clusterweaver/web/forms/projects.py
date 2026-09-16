@@ -24,6 +24,7 @@ class ProjectForm(FlaskForm):
         validators=[Optional(), Length(max=64)],
         render_kw={"placeholder": "Defaults to the project name"},
     )
+    group_id = SelectField("Project group", choices=[(0, "Ungrouped")], coerce=int, default=0, validators=[Optional()])
     description = TextAreaField(
         "Description",
         validators=[Optional(), Length(max=5000)],
@@ -88,3 +89,22 @@ class ProjectImportForm(FlaskForm):
 class ServerProjectImportForm(FlaskForm):
     archive_name = SelectField("Archive available on server", validators=[DataRequired()])
     submit = SubmitField("Import from server")
+
+
+class ProjectDeleteForm(FlaskForm):
+    submit = SubmitField("Delete")
+
+
+class ProjectGroupForm(FlaskForm):
+    name = StringField("Group name", validators=[DataRequired(), Length(max=120)])
+    description = TextAreaField("Description", validators=[Optional(), Length(max=2000)], render_kw={"rows": 3})
+    color = StringField("Identifying color", validators=[DataRequired(), Length(min=7, max=7)], render_kw={"type": "color"})
+    submit = SubmitField("Save group")
+
+    def validate_name(self, field) -> None:
+        if not (field.data or "").strip():
+            raise ValidationError("Enter a group name.")
+
+    def validate_color(self, field) -> None:
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", field.data or ""):
+            raise ValidationError("Select a valid color.")

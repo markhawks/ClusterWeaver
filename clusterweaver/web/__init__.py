@@ -25,6 +25,10 @@ def create_app(config_object=Config, **overrides) -> Flask:
     if database_url.startswith("sqlite:///"):
         Path(database_url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
     db.init_app(app)
+    static_asset_version = str(max(
+        (Path(app.static_folder) / "css" / "app.css").stat().st_mtime_ns,
+        (Path(app.static_folder) / "js" / "app.js").stat().st_mtime_ns,
+    ))
 
     @app.context_processor
     def application_metadata() -> dict:
@@ -38,6 +42,7 @@ def create_app(config_object=Config, **overrides) -> Flask:
 
         return {
             "clusterweaver_version": __version__,
+            "static_asset_version": static_asset_version,
             "logout_form": LogoutForm(),
             "selected_theme": getattr(getattr(g, "current_user", None), "theme", app.config.get("DEFAULT_THEME", "dark")),
             "software_components": (
@@ -86,7 +91,7 @@ def create_app(config_object=Config, **overrides) -> Flask:
         session["username"], session["role"] = user.username, user.role
         if user.role == "user":
             read_only_endpoints = {
-                "projects.index", "projects.detail", "projects.changelog",
+                "projects.home", "projects.index", "projects.detail", "projects.changelog",
                 "projects.export_project",
                 "projects.download_precheck", "projects.download_network_check",
                 "projects.download_hosts_update", "projects.download_network_connectivity",

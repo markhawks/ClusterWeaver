@@ -2,7 +2,7 @@
 {% block title %}{{ title }} · ClusterWeaver{% endblock %}
 {% block navigation %}
 <nav class="d-flex justify-content-between align-items-center mb-3" aria-label="Breadcrumb">
-  <ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{{ url_for('projects.index') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">{{ title }}</li></ol>
+  <ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{{ url_for('projects.home') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('projects.index') }}">Projects</a></li><li class="breadcrumb-item active" aria-current="page">{{ title }}</li></ol>
   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('projects.index') }}">← All projects</a>
 </nav>
 {% endblock %}
@@ -15,6 +15,8 @@
     <div class="form-text mt-n2 mb-3">Suggested names: <code>postgres-ha-prod</code>, <code>db2-ha-prod</code>, or <code>apache-ha-prod</code>.</div>
     {{ render_field(form.cluster_name) }}
     <div class="form-text mt-n2 mb-3">Pacemaker cluster name used by <code>pcs cluster setup</code>. If left empty, the project name is proposed.</div>
+    {{ render_field(form.group_id) }}
+    <div class="form-text mt-n2 mb-3">Assign this project to an existing Project Group, or leave it ungrouped.</div>
     {{ render_field(form.customer) }}
     <div class="form-text mt-n2 mb-3">The company, department, customer, or lab that owns the cluster; for example <code>ACME</code>, <code>Database Team</code>, or <code>Home Lab</code>.</div>
     {{ render_field(form.description) }}

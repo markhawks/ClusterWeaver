@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.validators import host_address
-from clusterweaver.persistence.models import NodeRecord, ProjectRecord, StepExecutionRecord, utcnow
+from clusterweaver.persistence.models import NodeRecord, ProjectGroupRecord, ProjectRecord, StepExecutionRecord, utcnow
 
 
 def to_domain(record: ProjectRecord) -> ProjectData:
@@ -17,6 +17,9 @@ def to_domain(record: ProjectRecord) -> ProjectData:
         name=record.name,
         slug=record.slug,
         cluster_name=record.cluster_name or record.name,
+        group_id=record.group_id,
+        group_name=record.group.name if record.group else "",
+        group_color=record.group.color if record.group else "",
         customer=record.customer,
         description=record.description,
         rhel_major=record.rhel_major,
@@ -53,11 +56,11 @@ class ProjectRepository:
         self.session = session
 
     def list(self) -> list[ProjectData]:
-        statement = select(ProjectRecord).options(selectinload(ProjectRecord.nodes)).order_by(ProjectRecord.updated_at.desc())
+        statement = select(ProjectRecord).options(selectinload(ProjectRecord.nodes), selectinload(ProjectRecord.group)).order_by(ProjectRecord.updated_at.desc())
         return [to_domain(record) for record in self.session.scalars(statement).all()]
 
     def get(self, project_id: int) -> ProjectData | None:
-        statement = select(ProjectRecord).where(ProjectRecord.id == project_id).options(selectinload(ProjectRecord.nodes))
+        statement = select(ProjectRecord).where(ProjectRecord.id == project_id).options(selectinload(ProjectRecord.nodes), selectinload(ProjectRecord.group))
         record = self.session.scalar(statement)
         return to_domain(record) if record else None
 
@@ -136,6 +139,25 @@ class ProjectRepository:
 
     def add_project(self, **values) -> ProjectRecord:
         record = ProjectRecord(**values)
+        self.session.add(record)
+        self.session.flush()
+        return record
+
+    def list_groups(self) -> list[ProjectGroupRecord]:
+        statement = select(ProjectGroupRecord).order_by(ProjectGroupRecord.name)
+        return list(self.session.scalars(statement).all())
+
+    def get_group(self, group_id: int) -> ProjectGroupRecord | None:
+        return self.session.get(ProjectGroupRecord, group_id)
+
+    def group_name_exists(self, name: str, excluding_id: int | None = None) -> bool:
+        statement = select(ProjectGroupRecord.id).where(ProjectGroupRecord.normalized_name == name.strip().casefold())
+        if excluding_id is not None:
+            statement = statement.where(ProjectGroupRecord.id != excluding_id)
+        return self.session.scalar(statement) is not None
+
+    def add_group(self, **values) -> ProjectGroupRecord:
+        record = ProjectGroupRecord(**values)
         self.session.add(record)
         self.session.flush()
         return record

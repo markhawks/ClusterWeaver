@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".collapse").forEach((panel) => {
     const selector = `[data-bs-target="#${panel.id}"]`;
     const toggle = document.querySelector(selector);
-    if (!toggle) return;
+    if (!toggle || !toggle.classList.contains("collapse-toggle")) return;
     const isScript = toggle.textContent.trim().toLowerCase().includes("script");
     const summary = panel.closest(".workflow-script-area")?.querySelector(".workflow-run-summary");
     toggle.textContent = panel.classList.contains("show") ? (isScript ? "Hide script" : "Hide") : (isScript ? "Show script" : "Show");
@@ -122,7 +122,7 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   const row = event.target.closest(".clickable-row[data-href]");
-  if (!row || !["Enter", " "].includes(event.key)) return;
+  if (!row || event.target.closest("a, button, input, select, textarea") || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
   window.location.assign(row.dataset.href);
 });

@@ -62,6 +62,18 @@ dd { color: #5f6873; }
 .project-name { color: #0b5ed7; font-weight: 700; }
 .cluster-name { color: #087990; font-size: .875rem; font-weight: 600; }
 .project-notes { color: #6f42c1; font-size: .82rem; }
+.project-group-badge { display: inline-block; padding: .22rem .55rem; border: 1px solid var(--group-color); border-left-width: .4rem; border-radius: .35rem; font-weight: 600; }
+.project-group-card { border-left: .45rem solid var(--group-color); }
+.project-group-swatch { display: inline-block; width: 1rem; height: 1rem; border-radius: 50%; background: var(--group-color); border: 1px solid rgba(0,0,0,.25); }
+.project-group-heading-icon { display: inline-flex; color: var(--group-color, var(--bs-primary)); }
+.project-group-heading-icon .cw-icon { width: 1.35rem; height: 1.35rem; }
+.project-group-heading-name { font-size: 1.08rem; letter-spacing: .01em; }
+.project-group-count { color: var(--bs-secondary-color); font-size: .875rem; font-weight: 600; }
+.group-collapse-chevron { display: inline-flex; transition: transform .18s ease-in-out; }
+.group-collapse-chevron .cw-icon { width: 1.25rem; height: 1.25rem; }
+.group-collapse-button[aria-expanded="true"] .group-collapse-chevron { transform: rotate(180deg); }
+.project-entry-icon { display: inline-flex; margin-top: .15rem; color: var(--bs-primary); }
+.project-entry-icon .cw-icon { width: 1.15rem; height: 1.15rem; }
 .cluster-name span, .project-notes span { color: #5f6873; font-weight: 500; }
 [data-bs-theme="dark"] .workflow-description { background: #e9ecef; color: #111820; }
 [data-bs-theme="dark"] .login-brand-panel { background: #646b73; }

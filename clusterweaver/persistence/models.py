@@ -11,6 +11,19 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class ProjectGroupRecord(Base):
+    __tablename__ = "project_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    normalized_name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    color: Mapped[str] = mapped_column(String(7))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    projects: Mapped[list["ProjectRecord"]] = relationship(back_populates="group")
+
+
 class ProjectRecord(Base):
     __tablename__ = "projects"
 
@@ -19,6 +32,7 @@ class ProjectRecord(Base):
     name: Mapped[str] = mapped_column(String(160))
     slug: Mapped[str] = mapped_column(String(180), unique=True, index=True)
     cluster_name: Mapped[str] = mapped_column(String(64), default="")
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("project_groups.id", ondelete="SET NULL"), nullable=True, index=True)
     customer: Mapped[str] = mapped_column(String(160), index=True)
     description: Mapped[str] = mapped_column(Text, default="")
     rhel_major: Mapped[int] = mapped_column(Integer)
@@ -33,6 +47,7 @@ class ProjectRecord(Base):
         back_populates="project", cascade="all, delete-orphan", order_by="NodeRecord.hostname"
     )
     step_executions: Mapped[list["StepExecutionRecord"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    group: Mapped[ProjectGroupRecord | None] = relationship(back_populates="projects")
 
 
 class NodeRecord(Base):
