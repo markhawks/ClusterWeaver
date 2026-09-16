@@ -21,7 +21,12 @@ def _ensure_bootstrap_administrator() -> None:
     password = current_app.config.get("LOGIN_PASSWORD", "")
     if not username or not password:
         return
-    db.session.add(UserRecord(username=username, password_hash=generate_password_hash(password), role="administrator"))
+    db.session.add(UserRecord(
+        username=username,
+        password_hash=generate_password_hash(password),
+        role="administrator",
+        must_change_password=password == "changeme",
+    ))
     db.session.commit()
 
 
@@ -45,11 +50,19 @@ def login():
         user = db.session.scalar(select(UserRecord).where(UserRecord.username == username))
         password_hash = user.password_hash if user else _DUMMY_PASSWORD_HASH
         if check_password_hash(password_hash, form.password.data) and user:
+            # Also protects installations whose bootstrap administrator predates
+            # the must_change_password database column.
+            if current_app.config.get("LOGIN_PASSWORD") == "changeme" and form.password.data == "changeme":
+                user.must_change_password = True
+                db.session.commit()
             session.clear()
             session["authenticated"] = True
             session["user_id"] = user.id
             session["username"] = user.username
             session["role"] = user.role
+            if user.must_change_password:
+                flash("Change the initial password before using ClusterWeaver.", "warning")
+                return redirect(url_for("settings.configuration"))
             return redirect(_local_destination(request.args.get("next")) or url_for("projects.index"))
         flash("Invalid username or password.", "danger")
     return render_template("auth/login.html", form=form, credentials_configured=db.session.scalar(select(UserRecord.id).limit(1)) is not None)

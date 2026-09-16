@@ -5,13 +5,13 @@ import secrets
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
 from sqlalchemy.exc import IntegrityError
 
-from clusterweaver.core.generators import generate_cluster_setup, generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_pcsd_auth, generate_precheck
+from clusterweaver.core.generators import generate_cluster_setup, generate_hosts_update, generate_network_check, generate_network_connectivity, generate_network_configuration_plan, generate_package_install, generate_pcsd_auth, generate_peer_trust, generate_precheck, generate_ssh_discovery
 from clusterweaver.core.services.projects import ProjectFileService
 from clusterweaver.core.services.project_transfer import ProjectTransferError, build_project_archive, list_server_archives, open_server_archive, read_project_archive
 from clusterweaver.core.services.changelog import read_changelog
 from clusterweaver.core.services.slugs import make_slug
 from clusterweaver.core.services.ssh_bootstrap import bootstrap_peer_keys, discover_node, run_remote_script
-from clusterweaver.core.services.network_config import SUPPORTED_NETWORK_CONFIG_RELEASES, configure_node_network
+from clusterweaver.core.services.network_config import READ_ONLY_NETWORK_CONFIG_RELEASES, SUPPORTED_NETWORK_CONFIG_RELEASES, configure_node_network
 from clusterweaver.core.validators import host_address, validate_rhel_release
 from clusterweaver.persistence import db
 from clusterweaver.persistence.repositories import ProjectRepository
@@ -369,7 +369,7 @@ def detail(project_id: int):
     cluster_base_complete = sum(workflow_step_complete(project, workflow_results, step) for step in ("05", "06", "07"))
     network_form = NetworkApplyForm()
     network_form.node_id.choices = [(node.id, f"{node.hostname} · {node.bootstrap_ip or 'no bootstrap IP'}") for node in project.nodes]
-    return render_template("projects/detail.html", project=project, script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), package_script=generate_package_install(project), pcsd_auth_script=generate_pcsd_auth(project), cluster_setup_script=generate_cluster_setup(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, precluster_complete=precluster_complete, cluster_base_complete=cluster_base_complete, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), package_install_form=PackageInstallRunForm(prefix="package-install"), pcsd_auth_form=PcsdAuthRunForm(prefix="pcsd-auth"), cluster_setup_form=ClusterSetupRunForm(prefix="cluster-setup"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]))
+    return render_template("projects/detail.html", project=project, discovery_script=generate_ssh_discovery(), peer_trust_script=generate_peer_trust(project), network_configuration_script=generate_network_configuration_plan(project), script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), package_script=generate_package_install(project), pcsd_auth_script=generate_pcsd_auth(project), cluster_setup_script=generate_cluster_setup(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, precluster_complete=precluster_complete, cluster_base_complete=cluster_base_complete, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), package_install_form=PackageInstallRunForm(prefix="package-install"), pcsd_auth_form=PcsdAuthRunForm(prefix="pcsd-auth"), cluster_setup_form=ClusterSetupRunForm(prefix="cluster-setup"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]))
 
 
 @projects_bp.post("/projects/<int:project_id>/run-prechecks")
@@ -573,12 +573,12 @@ def network_apply(project_id: int):
     form.node_id.choices = [(node.id, node.hostname) for node in record.nodes]
     password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
     if not form.validate_on_submit() or not password:
-        flash("Select a node, provide credentials, and confirm the network change.", "danger")
+        flash("Select a node, provide credentials, and confirm the network operation.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     expected_release = f"{record.rhel_major}.{record.rhel_minor}"
     if expected_release not in SUPPORTED_NETWORK_CONFIG_RELEASES:
         supported = ", ".join(f"RHEL {release}" for release in sorted(SUPPORTED_NETWORK_CONFIG_RELEASES))
-        flash(f"Automated network configuration is currently available for {supported}.", "danger")
+        flash(f"Network configuration or read-only assessment is currently available for {supported}.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     node_record = next((node for node in record.nodes if node.id == form.node_id.data), None)
     if node_record is None:
@@ -590,15 +590,19 @@ def network_apply(project_id: int):
         return redirect(url_for("projects.detail", project_id=project_id))
     node = next(item for item in project.nodes if item.id == node_record.id)
     result = configure_node_network(node, password, expected_release=expected_release)
-    if result.ok:
+    writable_release = expected_release not in READ_ONLY_NETWORK_CONFIG_RELEASES
+    if result.ok and writable_release:
         node_record.bootstrap_ip = host_address(node_record.management_ip)
         record.updated_at = datetime.now(timezone.utc)
     repository().save_step_results(project_id, "00c", [result])
     db.session.commit()
-    if result.ok:
+    if result.ok and writable_release:
         persist_files(record.id, f"Apply network configuration to {node_record.hostname} in {record.name}")
         project = project_or_404(project_id)
-    return render_template("projects/ssh_results.html", project=project, results=[result], title="Network configuration", changed=True)
+    return render_template(
+        "projects/ssh_results.html", project=project, results=[result], title="Network configuration",
+        changed=writable_release,
+    )
 
 
 @projects_bp.route("/projects/<int:project_id>/edit", methods=["GET", "POST"])

@@ -26,7 +26,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
     page = login_client.get("/login")
     assert b"ClusterWeaver project logo" in page.data
-    assert b"Version 0.1.10" in page.data
+    assert b"Version 0.1.11" in page.data
     assert b"remotely executes controlled workflows" in page.data
     assert b'<html lang="en" data-bs-theme="dark">' in page.data
     assert b'<body class="login-page">' in page.data
@@ -43,6 +43,38 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert login_client.get("/").status_code == 200
     assert login_client.post("/logout").status_code == 302
     assert login_client.get("/").status_code == 302
+
+
+def test_default_bootstrap_password_must_be_changed_before_access(tmp_path):
+    application = create_app(
+        TestConfig,
+        LOGIN_DISABLED=False,
+        LOGIN_USERNAME="admin",
+        LOGIN_PASSWORD="changeme",
+        SECRET_KEY="forced-change-test-secret",
+        DATABASE_URL=f"sqlite:///{tmp_path / 'forced-change.db'}",
+        PROJECTS_ROOT=tmp_path / "projects",
+    )
+    with application.app_context():
+        Base.metadata.create_all(db.engine)
+
+    forced_client = application.test_client()
+    login = forced_client.post("/login?next=/projects", data={"username": "admin", "password": "changeme"})
+    assert login.status_code == 302 and login.headers["Location"].endswith("/configuration")
+    configuration = forced_client.get("/configuration")
+    assert b"Password change required" in configuration.data
+    assert b"Create user" not in configuration.data
+    assert forced_client.get("/projects").status_code == 302
+    assert forced_client.post("/configuration/theme", data={"theme-theme": "light"}).status_code == 302
+
+    changed = forced_client.post("/configuration/password", data={
+        "password-current_password": "changeme",
+        "password-new_password": "new-secure-password",
+        "password-confirm_password": "new-secure-password",
+    }, follow_redirects=True)
+    assert b"Password changed" in changed.data
+    assert b"Password change required" not in changed.data
+    assert forced_client.get("/projects").status_code == 200
 
 
 def test_role_permissions_and_user_configuration(tmp_path):
@@ -210,7 +242,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Changelog" in response.data and b"Changelog <small" not in response.data
     assert b"Configuration" in response.data and b"About ClusterWeaver" in response.data
     assert b"github.com/markhawks/ClusterWeaver" in response.data and b"Author: Mark Hawks" in response.data and b"Gunicorn" in response.data
-    assert "ClusterWeaver</strong><span>– Version 0.1.10</span>".encode() in response.data
+    assert "ClusterWeaver</strong><span>– Version 0.1.11</span>".encode() in response.data
     assert b"Linux High Availability Cluster Builder &amp; Lifecycle Manager" in response.data
     assert b'rel="icon"' in response.data
     assert b'/static/css/app.css?v=' in response.data and b'/static/js/app.js?v=' in response.data
@@ -225,8 +257,12 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b'id="pre-cluster-workflow" class="collapse show"' in response.data
     assert b'id="cluster-base-workflow" class="collapse"' in response.data
     assert b'id="workflow-run-01" class="btn btn-outline-secondary"' in response.data
-    assert response.data.count(b"Show script") == 7
-    assert response.data.count(b"Full screen") == 7
+    assert response.data.count(b"Show script") == 10
+    assert response.data.count(b"Full screen") == 10
+    assert b'id="bootstrap-discovery-code"' in response.data
+    assert b'id="bootstrap-peer-code"' in response.data
+    assert b'id="bootstrap-network-code"' in response.data
+    assert b"Passwords and private keys are never embedded" in response.data
     assert b'id="script-viewer"' in response.data
     assert b'id="project-configuration" class="collapse show"' in response.data
     assert b'class="btn btn-primary" href="/projects/' in response.data
@@ -582,7 +618,7 @@ def test_network_apply_requires_confirmation_and_updates_bootstrap_ip(client, ap
         return fake
     monkeypatch.setattr("clusterweaver.web.routes.projects.configure_node_network", fake_network_config)
     rejected = client.post(f"{project_url}/network-apply", data={"node_id": node_id, "password": "temporary"}, follow_redirects=True)
-    assert b"confirm the network change" in rejected.data
+    assert b"confirm the network operation" in rejected.data
     applied = client.post(f"{project_url}/network-apply", data={"node_id": node_id, "password": "temporary", "confirm": "y"})
     assert b"configured" in applied.data
     assert captured["expected_release"] == "9.8"

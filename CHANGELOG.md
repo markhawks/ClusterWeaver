@@ -6,6 +6,12 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-09-16
+
+- Added mandatory password replacement when the bootstrap administrator signs in with the default `admin` / `changeme` credentials; all project and administrative functions remain blocked until the password is changed. Existing installations still using the original credential are covered after migration.
+- Added a dedicated RHEL 7.9 Step 00 network assessment that detects NetworkManager versus legacy network-scripts ownership and verifies management/private addressing and routing without making any remote or local project configuration changes.
+- Added Show/Hide script, full-screen viewing, and clipboard copy actions for all three Step 00 operations. The displayed discovery payload and sanitized SSH trust/network orchestration plans never include passwords or private keys.
+
 ## [0.1.10] - 2026-09-16
 
 - Added Project Groups with case-insensitive unique names, optional descriptions, selectable identifying colors, project assignment, group-aware search and sorting, and a collapsible Home dashboard with group and ungrouped project counters.

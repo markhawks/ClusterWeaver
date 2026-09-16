@@ -89,6 +89,10 @@ def create_app(config_object=Config, **overrides) -> Flask:
             return redirect(url_for("auth.login"))
         g.current_user = user
         session["username"], session["role"] = user.username, user.role
+        if user.must_change_password:
+            password_change_endpoints = {"settings.configuration", "settings.change_password", "auth.logout", "static"}
+            if request.endpoint not in password_change_endpoints:
+                return redirect(url_for("settings.configuration"))
         if user.role == "user":
             read_only_endpoints = {
                 "projects.home", "projects.index", "projects.detail", "projects.changelog",

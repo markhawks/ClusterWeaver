@@ -10,7 +10,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.10**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.11**. Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -18,7 +18,7 @@ This first MVP manages RHEL 7, 9, and 10 cluster projects and nodes. It stores s
 
 Projects can be assigned to color-coded Project Groups with unique names and optional descriptions. Home presents collapsed group and ungrouped sections with project counters, while Project retains the complete searchable and sortable inventory, including Group as a column and filter.
 
-The generated remote workflow is divided into two collapsible phases. **Pre-Cluster Configuration** (steps 00–04) performs SSH bootstrap and discovery, network configuration and verification, `/etc/hosts` management, and preliminary checks. **Cluster Base Installation and Configuration** installs and verifies the Pacemaker packages (step 05), enables `pcsd` and authenticates the nodes (step 06), then creates the named cluster and verifies membership, `WaitForAll`, and quorum (step 07). Each action is gated by the successful completion of the preceding steps and records its result per node.
+The generated remote workflow is divided into two collapsible phases. **Pre-Cluster Configuration** (steps 00–04) performs SSH bootstrap and discovery, network configuration and verification, `/etc/hosts` management, and preliminary checks. Step 00 exposes review, copy, and full-screen views for all three operations; its RHEL 7.9 network action is strictly read-only and reports NetworkManager or legacy network-scripts ownership, while RHEL 9.8 and 10.2 retain guarded configuration support. **Cluster Base Installation and Configuration** installs and verifies the Pacemaker packages (step 05), enables `pcsd` and authenticates the nodes (step 06), then creates the named cluster and verifies membership, `WaitForAll`, and quorum (step 07). Each action is gated by the successful completion of the preceding steps and records its result per node.
 
 ## Development prerequisites
 
@@ -57,7 +57,7 @@ export CLUSTERWEAVER_LOGIN_PASSWORD='changeme' # first administrator bootstrap o
 
 The checked-in default is suitable only for local development.
 
-The first start creates the default administrator `admin` with password `changeme` when the users table is empty. Change this password immediately from **Configuration**. Bootstrap credentials are ignored after the first user exists; passwords are stored only as salted hashes in SQLite.
+The first start creates the default administrator `admin` with password `changeme` when the users table is empty. Its first login is restricted to **Configuration**, password change, and logout until `changeme` is replaced. This protection also detects existing installations that still use the original credential. Bootstrap credentials are ignored after the first user exists; passwords are stored only as salted hashes in SQLite.
 
 ## Authentication, roles, and appearance
 
@@ -132,7 +132,7 @@ The host layout is deliberately small:
 /var/lib/clusterweaver/data/projects/             # persistent YAML projects and Git history
 ```
 
-Application code and Python dependencies are stored inside the versioned OCI image, for example `localhost/clusterweaver:0.1.10`. The container runs as unprivileged UID `10001`, has a read-only application filesystem, drops all Linux capabilities, writes only to the mounted data directory, and provides a periodic health check. On the disconnected target, Satellite supplies only the required RHEL packages; the transferred bundle supplies the application image without contacting GitHub, PyPI, or an external registry.
+Application code and Python dependencies are stored inside the versioned OCI image, for example `localhost/clusterweaver:0.1.11`. The container runs as unprivileged UID `10001`, has a read-only application filesystem, drops all Linux capabilities, writes only to the mounted data directory, and provides a periodic health check. On the disconnected target, Satellite supplies only the required RHEL packages; the transferred bundle supplies the application image without contacting GitHub, PyPI, or an external registry.
 
 It can be managed directly with systemd:
 

@@ -3,6 +3,7 @@
 {% block title %}Configuration · ClusterWeaver{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center gap-2 mb-4"><span class="configuration-title-icon">{{ icon('settings') }}</span><div><h1 class="h2 mb-0">Configuration</h1><p class="text-body-secondary mb-0">Account, password and access-role management.</p></div></div>
+{% if g.current_user.must_change_password %}<div class="alert alert-warning" role="alert"><strong>Password change required.</strong> Replace the initial password before accessing projects or administrative functions.</div>{% endif %}
 <div class="row g-4">
   <div class="col-xl-5"><section class="card shadow-sm h-100"><div class="card-body">
     <h2 class="h5">Your account</h2><p class="text-body-secondary">Signed in as <strong>{{ g.current_user.username }}</strong> · <span class="badge text-bg-secondary">{{ g.current_user.role }}</span></p>
@@ -11,6 +12,7 @@
       {{ password_form.submit(class='btn btn-primary') }}
     </form>
   </div></section></div>
+  {% if not g.current_user.must_change_password %}
   <div class="col-xl-7"><section class="card shadow-sm h-100"><div class="card-body">
     <h2 class="h5">Access roles</h2><dl class="row mb-0">
       <dt class="col-sm-3">User</dt><dd class="col-sm-9">Read-only access to projects, nodes, scripts and execution results.</dd>
@@ -18,7 +20,9 @@
       <dt class="col-sm-3">Administrator</dt><dd class="col-sm-9">Full access, including user creation, modification and deletion.</dd>
     </dl>
   </div></section></div>
+  {% endif %}
 </div>
+{% if not g.current_user.must_change_password %}
 <section class="card shadow-sm mt-4"><div class="card-body"><h2 class="h5">Appearance</h2><p class="text-body-secondary">Choose your personal interface theme. Soft dark grey is used by default.</p><form class="row g-3 align-items-end" method="post" action="{{ url_for('settings.change_theme') }}">{{ theme_form.hidden_tag() }}<div class="col-md-5">{{ theme_form.theme.label(class='form-label') }}{{ theme_form.theme(class='form-select') }}</div><div class="col-md-auto">{{ theme_form.submit(class='btn btn-primary') }}</div></form></div></section>
 {% if g.current_user.role == 'administrator' %}
 <section class="card shadow-sm mt-4"><div class="card-body"><h2 class="h5">Create user</h2>
@@ -35,4 +39,5 @@
 </div></div></div>{% endfor %}
 </div></section>
 {% else %}<div class="alert alert-info mt-4">User account management is available only to administrators.</div>{% endif %}
+{% endif %}
 {% endblock %}

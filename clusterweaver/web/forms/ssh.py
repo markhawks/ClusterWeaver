@@ -17,8 +17,8 @@ class SSHKeyBootstrapForm(FlaskForm):
 class NetworkApplyForm(FlaskForm):
     node_id = SelectField("Node", coerce=int, validators=[DataRequired()])
     password = PasswordField("Initial root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
-    confirm = BooleanField("I understand that this changes the selected node's active network configuration.", validators=[DataRequired()])
-    submit = SubmitField("Apply network configuration")
+    confirm = BooleanField("I understand that this inspects the node and may change networking only on supported writable releases.", validators=[DataRequired()])
+    submit = SubmitField("Run network configuration")
 
 
 class PrecheckRunForm(FlaskForm):

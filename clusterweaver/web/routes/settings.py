@@ -64,6 +64,7 @@ def change_password():
         changed_at = datetime.now(timezone.utc)
         g.current_user.password_hash = generate_password_hash(form.new_password.data)
         g.current_user.password_changed_at = changed_at
+        g.current_user.must_change_password = False
         g.current_user.updated_at = changed_at
         db.session.commit()
         flash("Password changed.", "success")

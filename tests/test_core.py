@@ -5,7 +5,7 @@ from uuid import uuid4
 from types import SimpleNamespace
 import yaml
 
-from clusterweaver.core.generators import generate_cluster_setup, generate_hosts_update, generate_network_check, generate_network_connectivity, generate_package_install, generate_pcsd_auth, generate_precheck
+from clusterweaver.core.generators import generate_cluster_setup, generate_hosts_update, generate_network_check, generate_network_connectivity, generate_network_configuration_plan, generate_package_install, generate_pcsd_auth, generate_peer_trust, generate_precheck, generate_ssh_discovery
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.serializers import project_to_yaml, write_project_yaml
 from clusterweaver.core.services.slugs import make_slug
@@ -64,6 +64,27 @@ def test_ssh_channel_drains_stdout_and_stderr_before_exit_status():
     assert "standard output" in output and "standard error" in output
 
 
+def test_step00_scripts_are_visible_and_credential_free():
+    project = sample_project()
+    discovery = generate_ssh_discovery()
+    trust = generate_peer_trust(project)
+    network = generate_network_configuration_plan(project)
+    assert "hostnamectl" in discovery and "nmcli" in discovery
+    assert "ssh-keygen" in trust and "authorized_keys" in trust
+    assert "secret" not in trust.lower() and "password=" not in trust.lower()
+    assert "EXPECTED_RELEASE=9.8" in network
+    assert "90-second systemd rollback" in network
+
+
+def test_step00_rhel79_network_view_declares_read_only_policy():
+    project = sample_project()
+    project.rhel_major, project.rhel_minor = 7, "9"
+    network = generate_network_configuration_plan(project)
+    assert "inspection only" in network
+    assert "No modifying command is executed" in network
+    assert "nmcli connection add" not in network
+
+
 def test_network_apply_is_noop_when_configuration_is_compliant(monkeypatch):
     calls = []
     monkeypatch.setattr("clusterweaver.core.services.network_config._connect", lambda node, password: (SimpleNamespace(close=lambda: None), "fingerprint"))
@@ -91,6 +112,37 @@ def test_network_apply_is_noop_when_configuration_is_compliant(monkeypatch):
     assert any('${VERSION_ID}" = 9.8' in command for command in calls)
     assert not any("connection add" in command for command in calls)
     assert not any("systemd-run" in command for command in calls)
+
+
+def test_rhel79_network_configuration_is_strictly_read_only(monkeypatch):
+    calls = []
+    monkeypatch.setattr("clusterweaver.core.services.network_config._connect", lambda node, password: (SimpleNamespace(close=lambda: None), "fingerprint"))
+
+    def fake_run(_client, command):
+        calls.append(command)
+        if "os-release" in command or "ip link show" in command:
+            return 0, ""
+        if "command -v nmcli" in command:
+            return 0, "service=active\nrunning=running\n"
+        if "nm_connection=" in command:
+            return 0, "nm_connection=System enp1s0\nlegacy_ifcfg=present"
+        if "address show dev enp1s0" in command:
+            return 0, "2: enp1s0 inet 192.168.124.11/24 scope global enp1s0\n"
+        if "route show default dev enp1s0" in command:
+            return 0, "default via 192.168.124.1 dev enp1s0\n"
+        if "address show dev enp7s0" in command:
+            return 0, "3: enp7s0 inet 192.168.200.11/24 scope global enp7s0\n"
+        if "route show default dev enp7s0" in command:
+            return 0, ""
+        raise AssertionError(command)
+
+    monkeypatch.setattr("clusterweaver.core.services.network_config._run", fake_run)
+    result = configure_node_network(network_node(), "secret", expected_release="7.9")
+    assert result.ok
+    assert "read-only" in result.output and "no changes made" in result.output
+    assert "controlled by NetworkManager" in result.output
+    forbidden = ("nmcli connection add", "nmcli connection modify", "nmcli connection delete", "systemd-run", "cp ", "install ")
+    assert not any(any(token in command for token in forbidden) for command in calls)
 
 
 def test_private_network_change_is_blocked_when_pcs_reports_cluster(monkeypatch):

@@ -10,7 +10,7 @@
 
 Strumento per la creazione e la gestione del ciclo di vita dei cluster Linux High Availability.
 
-Versione corrente: **0.1.10**. La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
+Versione corrente: **0.1.11**. La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
 
 ClusterWeaver è software libero distribuito con licenza [GNU Affero General Public License v3.0](LICENSE). Le versioni modificate offerte agli utenti attraverso una rete devono rendere disponibile il relativo codice sorgente con la stessa licenza. Per contribuire consulta [CONTRIBUTING.md](CONTRIBUTING.md) e [SECURITY.md](SECURITY.md).
 
@@ -18,7 +18,7 @@ Questo primo MVP gestisce progetti e nodi cluster RHEL 7, 9 e 10. Memorizza lo s
 
 I progetti possono essere assegnati a Project Group identificati da colore, con nome univoco e descrizione facoltativa. Home mostra gruppi e progetti non raggruppati in sezioni inizialmente chiuse con contatori; Project mantiene l’inventario completo ricercabile e ordinabile, includendo Group come colonna e filtro.
 
-Il workflow remoto è suddiviso in due fasi richiudibili. **Pre-Cluster Configuration** (step 00–04) gestisce bootstrap e discovery SSH, configurazione e verifica della rete, `/etc/hosts` e controlli preliminari. **Cluster Base Installation and Configuration** installa e verifica i pacchetti Pacemaker (step 05), abilita `pcsd` e autentica i nodi (step 06), quindi crea il cluster con il nome configurato e verifica membership, `WaitForAll` e quorum (step 07). Ogni azione è subordinata al completamento corretto degli step precedenti e registra il risultato per ciascun nodo.
+Il workflow remoto è suddiviso in due fasi richiudibili. **Pre-Cluster Configuration** (step 00–04) gestisce bootstrap e discovery SSH, configurazione e verifica della rete, `/etc/hosts` e controlli preliminari. Tutte e tre le operazioni dello Step 00 possono essere visualizzate, copiate e aperte a schermo intero; su RHEL 7.9 la rete viene esclusivamente verificata, rilevando NetworkManager o i legacy network-scripts senza apportare modifiche, mentre RHEL 9.8 e 10.2 conservano la configurazione protetta. **Cluster Base Installation and Configuration** installa e verifica i pacchetti Pacemaker (step 05), abilita `pcsd` e autentica i nodi (step 06), quindi crea il cluster con il nome configurato e verifica membership, `WaitForAll` e quorum (step 07). Ogni azione è subordinata al completamento corretto degli step precedenti e registra il risultato per ciascun nodo.
 
 ## Requisiti di sviluppo
 
@@ -57,7 +57,7 @@ export CLUSTERWEAVER_LOGIN_PASSWORD='changeme' # solo bootstrap del primo ammini
 
 I valori predefiniti inclusi nel progetto sono adatti esclusivamente allo sviluppo locale.
 
-Al primo avvio, se la tabella utenti è vuota, viene creato l’amministratore `admin` con password `changeme`. Cambia immediatamente la password dalla pagina **Configuration**. Le credenziali di bootstrap vengono ignorate dopo la creazione del primo utente; le password sono memorizzate in SQLite esclusivamente come hash con salt.
+Al primo avvio, se la tabella utenti è vuota, viene creato l’amministratore `admin` con password `changeme`. Al primo accesso sono consentiti solamente **Configuration**, cambio password e logout fino alla sostituzione di `changeme`; il controllo protegge anche le installazioni esistenti che usano ancora la credenziale originale. Le credenziali di bootstrap vengono ignorate dopo la creazione del primo utente; le password sono memorizzate in SQLite esclusivamente come hash con salt.
 
 ## Autenticazione, ruoli e aspetto
 
@@ -132,7 +132,7 @@ La struttura sul sistema host è volutamente ridotta:
 /var/lib/clusterweaver/data/projects/             # progetti YAML e storico Git persistenti
 ```
 
-Il codice applicativo e le dipendenze Python sono contenuti nell’immagine OCI versionata, per esempio `localhost/clusterweaver:0.1.10`. Il container viene eseguito con UID non privilegiato `10001`, usa un filesystem applicativo in sola lettura, non possiede capability Linux, può scrivere solamente nella directory dati montata ed esegue un health check periodico. Sul server isolato Satellite fornisce soltanto i pacchetti RHEL richiesti; il bundle trasferito contiene l’immagine applicativa e non contatta GitHub, PyPI o registry esterni.
+Il codice applicativo e le dipendenze Python sono contenuti nell’immagine OCI versionata, per esempio `localhost/clusterweaver:0.1.11`. Il container viene eseguito con UID non privilegiato `10001`, usa un filesystem applicativo in sola lettura, non possiede capability Linux, può scrivere solamente nella directory dati montata ed esegue un health check periodico. Sul server isolato Satellite fornisce soltanto i pacchetti RHEL richiesti; il bundle trasferito contiene l’immagine applicativa e non contatta GitHub, PyPI o registry esterni.
 
 Comandi principali:
 

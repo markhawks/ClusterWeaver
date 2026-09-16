@@ -9,7 +9,8 @@ from clusterweaver.core.services.ssh_bootstrap import _connect, _run
 from clusterweaver.core.validators import host_address
 
 
-SUPPORTED_NETWORK_CONFIG_RELEASES = frozenset({"9.8", "10.2"})
+SUPPORTED_NETWORK_CONFIG_RELEASES = frozenset({"7.9", "9.8", "10.2"})
+READ_ONLY_NETWORK_CONFIG_RELEASES = frozenset({"7.9"})
 
 
 @dataclass(slots=True)
@@ -23,6 +24,80 @@ class NetworkConfigResult:
 
 def _command(*arguments: str) -> str:
     return shlex.join(arguments)
+
+
+def _inspect_rhel79_network(client, node) -> NetworkConfigResult:
+    """Assess RHEL 7.9 networking without changing any remote state."""
+    endpoint = f"{node.bootstrap_ip}:{node.ssh_port or 22}"
+    log = ["INFO: RHEL 7.9 network configuration is read-only; ClusterWeaver will not modify this node."]
+    compliant = True
+    nm_status, nm_state = _run(
+        client,
+        "if command -v nmcli >/dev/null 2>&1; then "
+        "printf 'service='; systemctl is-active NetworkManager 2>/dev/null || true; "
+        "printf 'running='; nmcli -t -f RUNNING general 2>/dev/null || true; "
+        "else echo 'nmcli=unavailable'; fi",
+    )
+    nm_state = nm_state.strip() or "status unavailable"
+    if nm_status == 0 and "running=running" in nm_state:
+        log.append("INFO: networking is controlled by NetworkManager (" + nm_state.replace("\n", ", ") + ").")
+    else:
+        log.append("INFO: NetworkManager is not controlling the active network, or nmcli is unavailable (" + nm_state.replace("\n", ", ") + ").")
+
+    for label, interface in (("management", node.primary_interface), ("cluster/private", node.secondary_interface)):
+        if not interface:
+            continue
+        _status, ownership = _run(
+            client,
+            "printf 'nm_connection='; nmcli -g GENERAL.CONNECTION device show " + shlex.quote(interface)
+            + " 2>/dev/null || printf '%s' unavailable; "
+            "printf '\nlegacy_ifcfg='; test -f /etc/sysconfig/network-scripts/ifcfg-" + shlex.quote(interface)
+            + " && printf '%s' present || printf '%s' absent",
+        )
+        log.append(f"INFO: {label} interface {interface} ownership: {ownership.strip()}.")
+
+    status, addresses = _run(client, _command("ip", "-4", "-o", "address", "show", "dev", node.primary_interface, "scope", "global"))
+    management_ip_matches = status == 0 and node.management_ip in {
+        line.split()[3] for line in addresses.splitlines() if len(line.split()) > 3
+    }
+    _status, routes = _run(client, _command("ip", "-4", "route", "show", "default", "dev", node.primary_interface))
+    management_gateway_matches = any(
+        "via" in (tokens := line.split()) and tokens[tokens.index("via") + 1] == node.management_gateway
+        for line in routes.splitlines() if len(line.split()) > 2
+    )
+    if management_ip_matches:
+        log.append(f"PASS: management IP {node.management_ip} is configured on {node.primary_interface}.")
+    else:
+        compliant = False
+        log.append(f"FAIL: management IP {node.management_ip} is not configured on {node.primary_interface}.")
+    if management_gateway_matches:
+        log.append(f"PASS: default route uses gateway {node.management_gateway} on {node.primary_interface}.")
+    else:
+        compliant = False
+        log.append(f"FAIL: default route does not use gateway {node.management_gateway} on {node.primary_interface}.")
+
+    if node.cluster_ip and node.secondary_interface:
+        status, addresses = _run(client, _command("ip", "-4", "-o", "address", "show", "dev", node.secondary_interface, "scope", "global"))
+        private_ip_matches = status == 0 and node.cluster_ip in {
+            line.split()[3] for line in addresses.splitlines() if len(line.split()) > 3
+        }
+        _status, private_default = _run(client, _command("ip", "-4", "route", "show", "default", "dev", node.secondary_interface))
+        if private_ip_matches:
+            log.append(f"PASS: cluster/private IP {node.cluster_ip} is configured on {node.secondary_interface}.")
+        else:
+            compliant = False
+            log.append(f"FAIL: cluster/private IP {node.cluster_ip} is not configured on {node.secondary_interface}.")
+        if private_default.strip():
+            compliant = False
+            log.append(f"FAIL: cluster/private interface {node.secondary_interface} owns a default route.")
+        else:
+            log.append(f"PASS: cluster/private interface {node.secondary_interface} does not own a default route.")
+
+    if compliant:
+        log.append("=== Result: PASS — RHEL 7.9 network already matches the project; no changes made ===")
+    else:
+        log.append("=== Result: FAIL — RHEL 7.9 network differs from the project; no changes made ===")
+    return NetworkConfigResult(node.hostname, endpoint, compliant, "\n".join(log))
 
 
 def configure_node_network(
@@ -73,6 +148,9 @@ def configure_node_network(
             status, output = _run(client, _command("ip", "link", "show", "dev", interface))
             if status != 0:
                 return NetworkConfigResult(node.hostname, endpoint, False, f"Interface {interface} was not found.\n{output}")
+
+        if expected_release in READ_ONLY_NETWORK_CONFIG_RELEASES:
+            return _inspect_rhel79_network(client, node)
 
         management_ip_status, management_addresses = _run(
             client, _command("ip", "-4", "-o", "address", "show", "dev", node.primary_interface, "scope", "global")

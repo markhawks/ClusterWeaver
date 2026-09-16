@@ -8,7 +8,7 @@ The build host needs x86_64 Podman plus access to Red Hat UBI repositories and P
 
 ```bash
 ./setup/offline-container/build-offline-bundle.sh
-sha256sum -c dist/clusterweaver-0.1.10-linux-amd64-offline.tar.gz.sha256
+sha256sum -c dist/clusterweaver-0.1.11-linux-amd64-offline.tar.gz.sha256
 ```
 
 Transfer the `.tar.gz` and its `.sha256` file through the approved offline channel.
@@ -37,9 +37,9 @@ After first boot, copy the bundle to `/root`, then run:
 
 ```bash
 cd /root
-sha256sum -c clusterweaver-0.1.10-linux-amd64-offline.tar.gz.sha256
-tar -xzf clusterweaver-0.1.10-linux-amd64-offline.tar.gz
-cd clusterweaver-0.1.10-linux-amd64-offline
+sha256sum -c clusterweaver-0.1.11-linux-amd64-offline.tar.gz.sha256
+tar -xzf clusterweaver-0.1.11-linux-amd64-offline.tar.gz
+cd clusterweaver-0.1.11-linux-amd64-offline
 ./preflight.sh
 ./install-offline.sh
 ```
@@ -91,4 +91,4 @@ clusterweaver-update ./clusterweaver-<build>.cwu
 
 The updater validates external and internal checksums plus the exact base-image ID. It backs up SQLite and the Quadlet, stages code under `/opt/clusterweaver/live`, mounts it read-only over the application embedded in the container, and performs a health check. A failure restores the previous code, database, and Quadlet automatically. Previous code is retained in `/opt/clusterweaver/releases`. Dependencies, the UBI base, entrypoint, healthcheck, or other image-level changes still require a full offline bundle.
 
-For the official `0.1.9` → `0.1.10` update, obtain the `.cwu`, its `.sha256`, `clusterweaver-update`, and `clusterweaver-update.sha256` from the GitHub `v0.1.10` release on a connected workstation. Transfer those four unchanged files through the approved channel, install the helper once as shown above, and run `clusterweaver-update` with the `.cwu` path. No Git access is required on the ClusterWeaver server.
+For the official `0.1.10` → `0.1.11` update, obtain the `.cwu`, its `.sha256`, `clusterweaver-update`, and `clusterweaver-update.sha256` from the GitHub `v0.1.11` release on a connected workstation. Transfer those four unchanged files through the approved channel, install the helper once as shown above, and run `clusterweaver-update` with the `.cwu` path. No Git access is required on the ClusterWeaver server.
