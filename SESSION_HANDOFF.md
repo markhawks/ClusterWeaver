@@ -12,7 +12,10 @@ Updated: 2026-10-09 (Europe/Rome)
 - Private keys and request-only passwords are excluded from project exports and version control.
 - No live fencing or cluster lifecycle operation was performed. Appliance verification still requires real credentials and hardware validation.
 - The pre-existing file `1` was a hosts-file copy containing internal addresses; preserved at `/tmp/clusterweaver-session-hosts-backup.txt`, excluded from the release.
-- GitHub publication requires authenticated write access. At preparation time the remote main matched the local baseline; push authentication was missing. See the closure update below for final publication/artifact status.
+- Published release commit: `573060f`; tag: `v0.1.12`.
+- GitHub release: <https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.12>. Commit and tag pushed successfully; no uploaded release assets. GitHub automatically provides source archives.
+- All 111 tests passed again before publication; Git whitespace and JavaScript syntax checks passed.
+- No application deployment was performed as part of release publication.
 - Release packaging: offline installation is deprecated; do not build or upload offline installation archives for 0.1.12.
 - Next session: verify installation migrations, bootstrap/verify project SSH keys, then validate read-only status and step 08a against the target equipment before lifecycle operations.
 
