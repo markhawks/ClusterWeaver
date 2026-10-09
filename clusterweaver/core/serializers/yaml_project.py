@@ -8,7 +8,7 @@ from clusterweaver.core.models import ProjectData
 
 
 def project_to_dict(project: ProjectData) -> dict:
-    return {
+    document = {
         "schema_version": 1,
         "project": {
             "uuid": str(project.uuid),
@@ -47,6 +47,17 @@ def project_to_dict(project: ProjectData) -> dict:
             for node in sorted(project.nodes, key=lambda item: item.hostname.lower())
         ],
     }
+    if project.stonith:
+        document["stonith"] = {
+            "hardware": project.stonith["hardware"],
+            "mode": project.stonith.get("mode", "oem"),
+            "endpoint": project.stonith["endpoint"],
+            "profiles": [
+                {key: profile.get(key, "") for key in ("hostname", "profile_name", "username", "controller_endpoint", "resource_name")}
+                for profile in project.stonith["profiles"]
+            ],
+        }
+    return document
 
 
 def project_to_yaml(project: ProjectData) -> str:

@@ -31,6 +31,7 @@ getent group "${service_group}" >/dev/null || groupadd --system "${service_group
 id "${service_user}" >/dev/null 2>&1 || useradd --system --gid "${service_group}" --home-dir "${data_root}" --create-home --shell /sbin/nologin "${service_user}"
 install -d -o root -g root -m 0755 "${install_root}" "${install_root}/previous"
 install -d -o "${service_user}" -g "${service_group}" -m 0755 "${data_root}" "${data_dir}" "${data_dir}/projects" "${data_dir}/Project-Import"
+install -d -o "${service_user}" -g "${service_group}" -m 0700 "${data_dir}/ssh_keys"
 install -d -o root -g root -m 0700 "${backup_dir}"
 install -d -o root -g "${service_group}" -m 0750 "${environment_dir}"
 
@@ -49,7 +50,7 @@ if [[ ! -f "${environment_file}" ]]; then
     temporary_environment="$(mktemp)"
     {
         echo "CLUSTERWEAVER_SECRET_KEY=$(openssl rand -hex 32)"; echo "CLUSTERWEAVER_LOGIN_USERNAME=admin"; echo "CLUSTERWEAVER_LOGIN_PASSWORD=changeme"
-        echo "CLUSTERWEAVER_DATABASE_URL=sqlite:////var/lib/clusterweaver/data/clusterweaver.db"; echo "CLUSTERWEAVER_PROJECTS_ROOT=/var/lib/clusterweaver/data/projects"; echo "CLUSTERWEAVER_PROJECT_IMPORT_ROOT=/var/lib/clusterweaver/data/Project-Import"; echo "CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD="
+        echo "CLUSTERWEAVER_DATABASE_URL=sqlite:////var/lib/clusterweaver/data/clusterweaver.db"; echo "CLUSTERWEAVER_PROJECTS_ROOT=/var/lib/clusterweaver/data/projects"; echo "CLUSTERWEAVER_PROJECT_IMPORT_ROOT=/var/lib/clusterweaver/data/Project-Import"; echo "CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD="; echo "CLUSTERWEAVER_SSH_SOURCE_IP="
     } >"${temporary_environment}"
     install -o root -g "${service_group}" -m 0640 "${temporary_environment}" "${environment_file}"
 else

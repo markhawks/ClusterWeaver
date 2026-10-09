@@ -4,57 +4,57 @@ from wtforms.validators import DataRequired, Optional
 
 
 class SSHDiscoveryForm(FlaskForm):
-    password = PasswordField("Initial root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     submit = SubmitField("Run read-only discovery")
 
 
 class SSHKeyBootstrapForm(FlaskForm):
-    password = PasswordField("Initial root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand this creates root SSH keys and updates authorized_keys on every node.", validators=[DataRequired()])
     submit = SubmitField("Create peer SSH trust")
 
 
 class NetworkApplyForm(FlaskForm):
     node_id = SelectField("Node", coerce=int, validators=[DataRequired()])
-    password = PasswordField("Initial root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand that this inspects the node and may change networking only on supported writable releases.", validators=[DataRequired()])
     submit = SubmitField("Run network configuration")
 
 
 class PrecheckRunForm(FlaskForm):
-    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     submit = SubmitField("Run on all nodes")
 
 
 class NetworkCheckRunForm(FlaskForm):
-    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     submit = SubmitField("Run on all nodes")
 
 
 class HostsUpdateRunForm(FlaskForm):
-    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand that this updates /etc/hosts on every node and creates a backup.", validators=[DataRequired()])
     submit = SubmitField("Run on all nodes")
 
 
 class ConnectivityRunForm(FlaskForm):
-    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     submit = SubmitField("Run on all nodes")
 
 
 class PackageInstallRunForm(FlaskForm):
-    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand that this installs cluster packages on every node.", validators=[DataRequired()])
     submit = SubmitField("Install on all nodes")
 
 
 class ClusterSetupRunForm(FlaskForm):
-    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand that this creates, stops, starts, and changes quorum configuration for the cluster.", validators=[DataRequired()])
     submit = SubmitField("Create and configure cluster")
 
 
 class PcsdAuthRunForm(FlaskForm):
-    password = PasswordField("Root password override", validators=[Optional()], render_kw={"autocomplete": "off"})
+    password = PasswordField("Current root password override (optional with project key)", validators=[Optional()], render_kw={"autocomplete": "off"})
     confirm = BooleanField("I understand that this starts pcsd, sets the hacluster password, and authorizes every node.", validators=[DataRequired()])
     submit = SubmitField("Configure on all nodes")

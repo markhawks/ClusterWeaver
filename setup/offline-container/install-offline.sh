@@ -26,6 +26,7 @@ archive="$(find "${bundle_dir}" -maxdepth 1 -type f -name 'clusterweaver-*.oci.t
 podman load --input "${archive}"
 
 install -d -o 10001 -g 10001 -m 0755 "${data_dir}" "${data_dir}/projects" "${data_dir}/Project-Import"
+install -d -o 10001 -g 10001 -m 0700 "${data_dir}/ssh_keys"
 install -d -o root -g root -m 0755 "${quadlet_dir}"
 install -d -o root -g root -m 0750 "${environment_dir}"
 if [[ ! -f "${environment_file}" ]]; then

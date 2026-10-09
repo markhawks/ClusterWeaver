@@ -11,10 +11,12 @@ from clusterweaver.core.services.project_transfer import ProjectTransferError, b
 from clusterweaver.core.services.changelog import read_changelog
 from clusterweaver.core.services.slugs import make_slug
 from clusterweaver.core.services.ssh_bootstrap import bootstrap_peer_keys, discover_node, run_remote_script
+from clusterweaver.core.services.ssh_credentials import redact_output
 from clusterweaver.core.services.network_config import READ_ONLY_NETWORK_CONFIG_RELEASES, SUPPORTED_NETWORK_CONFIG_RELEASES, configure_node_network
 from clusterweaver.core.validators import host_address, validate_rhel_release
 from clusterweaver.persistence import db
 from clusterweaver.persistence.repositories import ProjectRepository
+from clusterweaver.web.ssh_credentials import project_credentials, project_key_store
 from clusterweaver.web.forms import ClusterSetupRunForm, ConnectivityRunForm, HostsUpdateRunForm, NetworkApplyForm, NetworkCheckRunForm, NodeForm, PackageInstallRunForm, PcsdAuthRunForm, PrecheckRunForm, ProjectDeleteForm, ProjectForm, ProjectGroupForm, ProjectImportForm, ServerProjectImportForm, SSHDiscoveryForm, SSHKeyBootstrapForm
 
 
@@ -74,6 +76,16 @@ def create_imported_project(imported: dict):
     record = repository().add_project(name=imported_name, slug=unique_slug(source_name), **values)
     for node in imported["nodes"]:
         repository().add_node(record, **node)
+    if imported.get("stonith"):
+        from clusterweaver.persistence.models import StonithConfigurationRecord, StonithProfileRecord
+        definition = imported["stonith"]
+        configuration = StonithConfigurationRecord(project=record, hardware="dell", mode=definition.get("mode", "oem"), endpoint=definition["endpoint"])
+        db.session.add(configuration)
+        nodes = {node.hostname: node for node in record.nodes}
+        for profile in definition["profiles"]:
+            db.session.add(StonithProfileRecord(configuration=configuration, node=nodes[profile["hostname"]],
+                profile_name=profile["profile_name"], username=profile["username"],
+                controller_endpoint=profile.get("controller_endpoint", ""), resource_name=profile.get("resource_name", "")))
     db.session.commit()
     persist_files(record.id, f"Import {source_name} project")
     return record
@@ -367,18 +379,20 @@ def detail(project_id: int):
     precluster_complete = int(all(workflow_step_complete(project, workflow_results, step) for step in ("00a", "00b", "00c")))
     precluster_complete += sum(workflow_step_complete(project, workflow_results, step) for step in ("01", "02", "03", "04"))
     cluster_base_complete = sum(workflow_step_complete(project, workflow_results, step) for step in ("05", "06", "07"))
+    from clusterweaver.web.routes.cluster_operations import operation_context
+    operations = operation_context(project, workflow_results)
     network_form = NetworkApplyForm()
     network_form.node_id.choices = [(node.id, f"{node.hostname} · {node.bootstrap_ip or 'no bootstrap IP'}") for node in project.nodes]
-    return render_template("projects/detail.html", project=project, discovery_script=generate_ssh_discovery(), peer_trust_script=generate_peer_trust(project), network_configuration_script=generate_network_configuration_plan(project), script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), package_script=generate_package_install(project), pcsd_auth_script=generate_pcsd_auth(project), cluster_setup_script=generate_cluster_setup(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, precluster_complete=precluster_complete, cluster_base_complete=cluster_base_complete, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), package_install_form=PackageInstallRunForm(prefix="package-install"), pcsd_auth_form=PcsdAuthRunForm(prefix="pcsd-auth"), cluster_setup_form=ClusterSetupRunForm(prefix="cluster-setup"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]))
+    return render_template("projects/detail.html", project=project, discovery_script=generate_ssh_discovery(), peer_trust_script=generate_peer_trust(project), network_configuration_script=generate_network_configuration_plan(project), script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), package_script=generate_package_install(project), pcsd_auth_script=generate_pcsd_auth(project), cluster_setup_script=generate_cluster_setup(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, precluster_complete=precluster_complete, cluster_base_complete=cluster_base_complete, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), package_install_form=PackageInstallRunForm(prefix="package-install"), pcsd_auth_form=PcsdAuthRunForm(prefix="pcsd-auth"), cluster_setup_form=ClusterSetupRunForm(prefix="cluster-setup"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]), ssh_key_available=project_key_store(project).available(), **operations)
 
 
 @projects_bp.post("/projects/<int:project_id>/run-prechecks")
 def run_prechecks(project_id: int):
     project = project_or_404(project_id)
     form = PrecheckRunForm()
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Enter the root password to run remote pre-checks.", "danger")
+        flash("Configure the project SSH key or enter the root password to run remote pre-checks.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before running pre-checks.", "danger")
@@ -398,9 +412,9 @@ def run_prechecks(project_id: int):
 def run_network_checks(project_id: int):
     project = project_or_404(project_id)
     form = NetworkCheckRunForm(prefix="network-check")
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Enter the root password to run remote network verification.", "danger")
+        flash("Configure the project SSH key or enter the root password to run remote network verification.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before running network verification.", "danger")
@@ -419,9 +433,9 @@ def run_network_checks(project_id: int):
 def run_hosts_update(project_id: int):
     project = project_or_404(project_id)
     form = HostsUpdateRunForm(prefix="hosts-update")
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Password and explicit confirmation are required to update /etc/hosts.", "danger")
+        flash("SSH credentials and explicit confirmation are required to update /etc/hosts.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before updating /etc/hosts.", "danger")
@@ -440,9 +454,9 @@ def run_hosts_update(project_id: int):
 def run_network_connectivity(project_id: int):
     project = project_or_404(project_id)
     form = ConnectivityRunForm(prefix="connectivity")
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Enter the root password to run cluster network connectivity checks.", "danger")
+        flash("Configure the project SSH key or enter the root password to run cluster network connectivity checks.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before checking cluster connectivity.", "danger")
@@ -461,9 +475,9 @@ def run_network_connectivity(project_id: int):
 def run_package_install(project_id: int):
     project = project_or_404(project_id)
     form = PackageInstallRunForm(prefix="package-install")
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Password and explicit confirmation are required to install cluster packages.", "danger")
+        flash("SSH credentials and explicit confirmation are required to install cluster packages.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before installing cluster packages.", "danger")
@@ -483,9 +497,9 @@ def run_package_install(project_id: int):
 def run_pcsd_auth(project_id: int):
     project = project_or_404(project_id)
     form = PcsdAuthRunForm(prefix="pcsd-auth")
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Password and explicit confirmation are required to configure pcsd authentication.", "danger")
+        flash("SSH credentials and explicit confirmation are required to configure pcsd authentication.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip or not node.nodename for node in project.nodes):
         flash("Every node requires an SSH bootstrap IP and cluster nodename before configuring pcsd.", "danger")
@@ -504,9 +518,9 @@ def run_pcsd_auth(project_id: int):
 def run_cluster_setup(project_id: int):
     project = project_or_404(project_id)
     form = ClusterSetupRunForm(prefix="cluster-setup")
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Password and explicit confirmation are required to create the cluster.", "danger")
+        flash("SSH credentials and explicit confirmation are required to create the cluster.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip or not node.nodename for node in project.nodes):
         flash("Every node requires an SSH bootstrap IP and cluster nodename before cluster setup.", "danger")
@@ -528,9 +542,9 @@ def run_cluster_setup(project_id: int):
 def ssh_discovery(project_id: int):
     project = project_or_404(project_id)
     form = SSHDiscoveryForm()
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Enter the initial root password to run discovery.", "danger")
+        flash("Configure the project SSH key or enter the current root password to run discovery.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if not project.nodes or any(not node.bootstrap_ip for node in project.nodes):
         flash("Configure an SSH bootstrap IP on every node before running discovery.", "danger")
@@ -545,9 +559,9 @@ def ssh_discovery(project_id: int):
 def ssh_key_bootstrap(project_id: int):
     project = project_or_404(project_id)
     form = SSHKeyBootstrapForm()
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
-        flash("Password and explicit confirmation are required to create peer SSH trust.", "danger")
+        flash("SSH credentials and explicit confirmation are required to create peer SSH trust.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     if len(project.nodes) < 2:
         flash("At least two nodes are required to create peer SSH trust.", "danger")
@@ -571,7 +585,7 @@ def network_apply(project_id: int):
         abort(404)
     form = NetworkApplyForm()
     form.node_id.choices = [(node.id, node.hostname) for node in record.nodes]
-    password = form.password.data or current_app.config["SSH_BOOTSTRAP_PASSWORD"]
+    password = project_credentials(project_or_404(project_id), form.password.data or "")
     if not form.validate_on_submit() or not password:
         flash("Select a node, provide credentials, and confirm the network operation.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
@@ -590,6 +604,7 @@ def network_apply(project_id: int):
         return redirect(url_for("projects.detail", project_id=project_id))
     node = next(item for item in project.nodes if item.id == node_record.id)
     result = configure_node_network(node, password, expected_release=expected_release)
+    result.output = redact_output(result.output, password)
     writable_release = expected_release not in READ_ONLY_NETWORK_CONFIG_RELEASES
     if result.ok and writable_release:
         node_record.bootstrap_ip = host_address(node_record.management_ip)
@@ -697,6 +712,14 @@ def edit_node(project_id: int, node_id: int):
     if form.validate_on_submit():
         if add_conflict_errors(form, project_id, node.id):
             return render_template("nodes/form.html", form=form, project=record, title="Edit node", interface_names=repository().interface_names())
+        if node.hostname != form.hostname.data.strip():
+            for execution in list(node.step_executions):
+                if execution.step in {"08a", "08a-fa", "00k", "00kr"}:
+                    db.session.delete(execution)
+        if node.bootstrap_ip != (form.bootstrap_ip.data or "").strip() or node.ssh_port != form.ssh_port.data:
+            for execution in list(node.step_executions):
+                if execution.step in {"08a-fa", "00k", "00kr"}:
+                    db.session.delete(execution)
         node.hostname = form.hostname.data.strip()
         node.nodename = form.nodename.data.strip()
         node.fqdn = form.fqdn.data.strip() if form.fqdn.data else ""

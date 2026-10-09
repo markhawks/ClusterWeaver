@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from clusterweaver.core.services.ssh_bootstrap import _connect, _run
 from clusterweaver.core.validators import host_address
+from clusterweaver.core.services.ssh_credentials import SSHCredentials
 
 
 SUPPORTED_NETWORK_CONFIG_RELEASES = frozenset({"7.9", "9.8", "10.2"})
@@ -102,7 +103,7 @@ def _inspect_rhel79_network(client, node) -> NetworkConfigResult:
 
 def configure_node_network(
     node,
-    password: str,
+    password: str | SSHCredentials,
     rollback_seconds: int = 90,
     *,
     expected_release: str = "10.2",
@@ -132,6 +133,9 @@ def configure_node_network(
     private_block_reason = ""
     try:
         client, _fingerprint = _connect(node, password)
+        reconnect_credentials = password
+        if isinstance(password, SSHCredentials):
+            reconnect_credentials = password.for_reconnect(client.get_transport().get_remote_server_key())
         release_check = (
             'source /etc/os-release && test "${ID}" = rhel && '
             f'test "${{VERSION_ID}}" = {shlex.quote(expected_release)}'
@@ -274,7 +278,7 @@ def configure_node_network(
             last_error = ""
             while time.monotonic() < deadline:
                 try:
-                    client, _fingerprint = _connect(new_node, password)
+                    client, _fingerprint = _connect(new_node, reconnect_credentials)
                     break
                 except Exception as exc:
                     last_error = str(exc)

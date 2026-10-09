@@ -212,6 +212,22 @@ def test_rhel_98_network_check_is_read_only_and_node_aware():
     assert "nmcli" in script and "ip -brief link" in script
 
 
+def test_network_check_reports_hostname_case_mismatch():
+    project = sample_project()
+    project.nodes[0].hostname = "Node01"
+    script = generate_network_check(project)
+    for hostname, expected in (("node01", "differs only in uppercase/lowercase"), ("other", "is not defined")):
+        result = subprocess.run(
+            ["bash"], input=f"hostname() {{ printf '%s\\n' {shlex.quote(hostname)}; }}\n" + script,
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 2
+        assert expected in result.stdout
+        if hostname == "node01":
+            assert "detected 'node01', configured 'Node01'" in result.stdout
+            assert "Update the node hostname in ClusterWeaver" in result.stdout
+
+
 def test_rhel_102_network_check_validates_routes_and_never_default():
     project = sample_project()
     project.rhel_major = 10
@@ -321,6 +337,93 @@ def test_cluster_setup_uses_named_cluster_and_required_quorum_sequence():
     for command in ("pcs cluster enable --all", "pcs cluster start --all", "pcs cluster stop --all", "pcs quorum update wait_for_all=1", "pcs quorum config", "pcs quorum status"):
         assert command in script
     assert "Quorate:" in script and "EXPECTED_NODES=2" in script
+
+
+def test_existing_cluster_is_verified_without_mutating_commands(tmp_path):
+    project = sample_project()
+    project.cluster_name = "db2-prod"
+    for execute_setup in (True, False):
+        for name, quorate, wait_for_all, votes, expected_code in (
+            ("db2-prod", "Yes", "Enabled", 1, 0),
+            ("db2-prod", "No", "Enabled", 1, 1),
+            ("db2-prod", "Yes", "Disabled", 1, 1),
+            ("db2-prod", "Yes", "Enabled", 2, 1),
+            ("db2-prod-other", "Yes", "Enabled", 1, 1),
+        ):
+            command_log = tmp_path / "pcs-commands"
+            command_log.write_text("")
+            stubs = f"""
+rpm() {{ return 0; }}
+pcs() {{
+  printf '%s\\n' "$*" >> {shlex.quote(str(command_log))}
+  case "$*" in
+    'status') echo 'Cluster name: {name}' ;;
+    'status nodes') echo 'Online: [ node01lanc ]' ;;
+    'quorum status') printf '%s\\n' 'Quorate: {quorate}' 'WaitForAll: {wait_for_all}' 'Expected votes: {votes}' ;;
+    *) echo 'Unexpected mutating command' >&2; return 99 ;;
+  esac
+}}
+"""
+            result = subprocess.run(["bash"], input=stubs + generate_cluster_setup(project, execute_setup), capture_output=True, text=True)
+            assert result.returncode == expected_code, result.stdout + result.stderr
+            commands = command_log.read_text().splitlines()
+            assert all(command in {"status", "status nodes", "quorum status"} for command in commands)
+            if name == "db2-prod":
+                assert "verification only" in result.stdout
+                assert "quorum status" in commands
+            else:
+                assert "a different cluster already exists" in result.stderr
+                assert commands == ["status"]
+
+
+def test_new_cluster_runs_configuration_sequence(tmp_path):
+    project = sample_project()
+    project.cluster_name = "db2-prod"
+    command_log = tmp_path / "pcs-commands"
+    stubs = f"""
+rpm() {{ return 0; }}
+pcs() {{
+  printf '%s\\n' "$*" >> {shlex.quote(str(command_log))}
+  case "$*" in
+    'status') echo 'No cluster configured'; return 1 ;;
+    'status nodes') echo 'Online: [ node01lanc ]' ;;
+    'quorum status') printf '%s\\n' 'Quorate: Yes' 'WaitForAll: Enabled' 'Expected votes: 1' ;;
+  esac
+  return 0
+}}
+"""
+    result = subprocess.run(["bash"], input=stubs + generate_cluster_setup(project), capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert command_log.read_text().splitlines() == [
+        "status", "cluster setup db2-prod --start node01lanc", "status nodes",
+        "cluster enable --all", "cluster start --all", "cluster stop --all",
+        "quorum update wait_for_all=1", "quorum config", "cluster start --all",
+        "status nodes", "quorum status",
+    ]
+
+
+def test_existing_cluster_accepts_rhel9_status_output():
+    project = sample_project()
+    project.cluster_name = "example-ha-cluster"
+    project.nodes = [NodeData(hostname=f"node{suffix}", nodename=f"node{suffix}lanc") for suffix in ("01", "02")]
+    stubs = """
+rpm() { return 0; }
+pcs() {
+  case "$*" in
+    'status') echo 'Cluster name: example-ha-cluster' ;;
+    'status nodes') printf '%s\n' 'Pacemaker Nodes:' ' Online: node01lanc node02lanc' ' Offline:' 'Pacemaker Remote Nodes:' ' Online:' ;;
+    'quorum status') printf '%s\n' 'Quorate: Yes' 'Expected votes: 2' 'Flags: 2Node Quorate WaitForAll ' ;;
+    *) return 99 ;;
+  esac
+}
+"""
+    result = subprocess.run(["bash"], input=stubs + generate_cluster_setup(project), capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "cluster base configuration verified" in result.stdout
+    missing_flag = stubs.replace("2Node Quorate WaitForAll", "2Node Quorate")
+    result = subprocess.run(["bash"], input=missing_flag + generate_cluster_setup(project), capture_output=True, text=True, timeout=5)
+    assert result.returncode == 1
+    assert "WaitForAll is not enabled" in result.stderr
 
 
 def test_network_connectivity_checks_peer_route_ping_mtu_and_duplicates():

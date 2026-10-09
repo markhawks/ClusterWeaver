@@ -6,6 +6,39 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-10-09
+
+### Added
+
+- Added **Cluster Operations and Status** in project details, with background status/start/stop/boot/standby controls, key-only identity preflight, per-node progress, guarded scripts, confirmation dialogs and persisted audit history. Migration `0017_cluster_operations` adds cross-worker project reservations and job history.
+
+- Added per-project service-owned RSA SSH keys with per-node bootstrap passwords, restricted public-key provisioning, strict project known_hosts, key-only verification, resumable installation, safe rotation and previous-key revocation. Keys never enter portable project data.
+
+- Added step 08a cluster-node fence-agent inventory over SSH, IPMI agent metadata checks, bounded parallel execution, separate persisted results, and manual `dnf install fence-agents-all` guidance for missing agents.
+
+- Added the DELL direct iDRAC/IPMI choice in step 08a, with per-node controller endpoints and STONITH resource names, conditional fields, read-only fence_ipmilan status verification, and migration `0016_stonith_ipmi`.
+
+- Added the **Cluster STONITH Configuration and Testing** workflow with step **08a**, initially supporting DELL OpenManage Enterprise (OEM): one endpoint per project and a hostname, OEM profile name, userid, and request-only password for each node.
+- Added separate Save and Save and Verify actions. Read-only HTTPS checks report connection/authentication failures, missing or case-mismatched names, incorrect or unverifiable profile assignments, disconnected devices, and the profile/device status returned by OEM. This step does not create fencing resources or perform power actions.
+- Added a standalone, viewable and copyable Python verification script with interactive password prompts, 8-second HTTPS request timeouts, a shared 45-second verification budget, and support for a private CA through `CLUSTERWEAVER_OEM_CA_FILE`.
+- Added migration `0015_stonith_profiles` for credential-free profile definitions. Definitions are saved in SQLite and YAML/Git and preserved in portable `.cwp` projects. OEM passwords are excluded from persistence, displayed scripts, logs and exports; imported projects reset verification results.
+- Added an elapsed-time table to the step 07 execution dialog showing SSH/script limits and a warning after the default 150-second web-service timeout, with guidance to inspect cluster state before retrying.
+
+### Changed
+
+- Deprecated offline installation. Release 0.1.12 does not include offline installation bundles.
+
+- Updated every remote workflow (step 00, 01–07 and 08a node-agent checks) to use active project SSH keys without daily root passwords. Explicit password overrides remain available; network reconnects verify the original node host identity.
+
+- Step 07 now performs read-only membership, quorum, WaitForAll and expected-vote checks when the expected cluster already exists. It does not stop, restart or reconfigure that cluster; a different cluster name is rejected on every node.
+- Editing OEM profile definitions or changing a node hostname invalidates the affected step 08a verification results. Read-only users can inspect profiles and results but cannot save or run verification.
+
+### Fixed
+
+- Step 02 now explains hostname mismatches caused only by uppercase/lowercase differences, showing the detected and configured names and the required correction.
+- Step 07 now recognizes RHEL 9 `pcs status nodes` output with or without brackets and matches exact node tokens, fixing repeated waits despite online nodes. It also recognizes WaitForAll in the `Flags` output of `pcs quorum status`.
+- Fixed the web changelog reader to display release notes listed directly below a release heading. Existing notes for earlier releases are now visible even when no Added/Changed/Fixed subsection was provided.
+
 ## [0.1.11] - 2026-09-16
 
 - Added mandatory password replacement when the bootstrap administrator signs in with the default `admin` / `changeme` credentials; all project and administrative functions remain blocked until the password is changed. Existing installations still using the original credential are covered after migration.

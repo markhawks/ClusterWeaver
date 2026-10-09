@@ -14,3 +14,5 @@ secrets.yml
 secrets.yaml
 instance/
 dist/
+
+data/ssh_keys/

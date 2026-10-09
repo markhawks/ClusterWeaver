@@ -1,8 +1,24 @@
 # ClusterWeaver session handoff
 
-Updated: 2026-09-16 (Europe/Rome)
+Updated: 2026-10-09 (Europe/Rome)
 
-## Repository and release state
+## Session closure: 0.1.12 (2026-10-09)
+
+- Checkout: `/root/ClusterWeaver-main`, branch `main`; version/tag: `0.1.12` / `v0.1.12`.
+- Release notes: `CHANGELOG.md`, dated `2026-10-09`.
+- Validation: 111 tests passed; JavaScript syntax and Git whitespace checks passed.
+- Alembic head: `0017_cluster_operations`; apply migrations before starting updated code.
+- Includes hostname diagnostics and step 07 existing-cluster checks; step 08a DELL OEM and direct iDRAC/IPMI definitions, read-only connection/status checks and fence-agent inventory; per-project service-owned SSH keys; background Cluster Operations and Status with identity/quorum checks, per-node progress and audit history.
+- Private keys and request-only passwords are excluded from project exports and version control.
+- No live fencing or cluster lifecycle operation was performed. Appliance verification still requires real credentials and hardware validation.
+- The pre-existing file `1` was a hosts-file copy containing internal addresses; preserved at `/tmp/clusterweaver-session-hosts-backup.txt`, excluded from the release.
+- GitHub publication requires authenticated write access. At preparation time the remote main matched the local baseline; push authentication was missing. See the closure update below for final publication/artifact status.
+- Release packaging: offline installation is deprecated; do not build or upload offline installation archives for 0.1.12.
+- Next session: verify installation migrations, bootstrap/verify project SSH keys, then validate read-only status and step 08a against the target equipment before lifecycle operations.
+
+The sections below preserve the historical 0.1.11 handoff and published artifact information.
+
+## Repository and release state (historical 0.1.11)
 
 - Checkout: `/var/www/html/ClusterWeaver`, branch `main`
 - Current release: `0.1.11`
@@ -143,3 +159,11 @@ Only forced replacement of `admin/changeme` was fixed in 0.1.11. Remaining findi
 5. Test Step 00c on RHEL 7.9 under both NetworkManager and legacy network-scripts, verifying no remote state changes.
 6. Test Show/Copy/Full-screen for all three Step 00 operations.
 7. Prefer removing the hard-coded `hacluster` password next, then implement SSH host-key pinning and HTTPS.
+
+- Step 08a now also supports direct DELL iDRAC/IPMI with credential-free per-node definitions. `fence_ipmilan` must be installed on the application server/container. Status only; no live IPMI check or deployment performed.
+
+- Step 08a now has a separate root-SSH node-agent check: inventories fence RPMs/executables, validates IPMI metadata, stores results as `08a-fa`, and proposes manual `dnf install fence-agents-all`. No remote installation or live node check was performed. No new migration is required for this check.
+
+- Added service-owned UUID-scoped SSH keys in `data/ssh_keys` (0700/0600), Step 00 → ClusterWeaver SSH key UI, per-node password provisioning, host-key pinning, key-only verification, pending/active/previous rotation, and previous-key revocation. All remote workflows accept keys; explicitly entered passwords request temporary password access. No fallback after key failure. Network IP changes require the original host key. No additional DB migration. No keys provisioned on actual cluster nodes or application deployment performed during this change.
+
+- Cluster Operations and Status UI follows STONITH, linked by Gestisci cluster. New migration0017 persists background jobs and one active reservation per project. Jobs use explicit project SSH keys, require 00k proof, verify exact Corosync/live identity, run local pcs on each SSH IP for cluster-wide actions, and one coordinator for node standby. No automatic retries/force; timeouts are UNKNOWN with refresh required. Daemon threads are interrupted on worker restart; stale jobs expire as UNKNOWN after600s. No live cluster operation or deployment was performed.

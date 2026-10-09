@@ -1,0 +1,24 @@
+{% extends 'base.html' %}{% from '_form_helpers.html' import render_field %}
+{% block title %}Project SSH key · {{ project.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-4"><div><h1 class="h3">Step 00 · ClusterWeaver SSH access</h1><p>{{ project.name }} · Connect as root on the nodes using a dedicated project key.</p></div><a class="btn btn-outline-secondary" href="{{ url_for('projects.detail', project_id=project.id) }}">Back to project</a></div>
+<div class="card mb-4"><div class="card-body"><p>One RSA 3072-bit key per project. The private key is stored only on the application server, readable by the service user; it is excluded from YAML, Git and portable exports. Only the public key is installed on the nodes.</p>
+{% for kind, key in key_status.items() %}<h2 class="h6">{{ kind|capitalize }} key</h2>{% if key.error %}<div class="alert alert-danger">{{ key.error }}</div>{% else %}<p>Fingerprint: <code>{{ key.fingerprint }}</code></p><pre class="code-panel"><code>{{ key.public_key }}</code></pre>{% endif %}{% else %}<p>No project key exists yet.</p>{% endfor %}
+<p class="small text-secondary">Pending keys become active only after every current project node passes key-only verification. Rotation preserves the active key until then; the previous key is retained until explicitly revoked. Existing node-to-node SSH keys are preserved.</p></div></div>
+<form method="post" class="remote-operation-form" id="project-ssh-access-form">
+{{ form.hidden_tag() }}
+<fieldset{% if g.current_user.role == 'user' %} disabled{% endif %}>
+<div class="card mb-4"><div class="card-body">{{ render_field(form.source_ip) }}
+<p class="small text-secondary">Use the source IP actually seen by sshd, including NAT. The authorized key uses <code>from="IP",restrict</code>. This still permits root commands without an interactive terminal. Verify that node SSH policies permit public-key authentication.</p>
+{{ render_field(form.password) }}
+<p class="small text-secondary">Passwords are used only for this request. Enter them for initial installation or recovery; a per-node password overrides the shared password. Leave them empty to reuse the active project key. Key-only verification never uses a password.</p>
+<div class="table-responsive"><table class="table"><thead><tr><th>Node</th><th>SSH IP</th><th>Current root password</th></tr></thead><tbody>
+{% for entry in form.nodes %}<tr><td>{{ entry.form.node_id }}{{ render_field(entry.form.hostname) }}</td><td>{{ project.nodes[loop.index0].bootstrap_ip }}:{{ project.nodes[loop.index0].ssh_port }}</td><td>{{ render_field(entry.form.password) }}</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="form-check mb-3">{{ form.confirm(class='form-check-input') }}{{ form.confirm.label(class='form-check-label') }}</div>
+{% if g.current_user.role in ['administrator', 'clusteradmin'] and project.nodes %}<div class="d-flex flex-wrap gap-2">{{ form.install(class='btn btn-primary') }}{{ form.verify(class='btn btn-success') }}{{ form.rotate(class='btn btn-outline-primary') }}{{ form.cleanup(class='btn btn-outline-danger') }}</div>{% endif %}
+<div class="alert alert-info mt-3 d-none operation-progress" role="status">Managing SSH keys… connecting to each configured node and checking access. Overall budget: 90 seconds; remote commands: 20 seconds.</div>
+</div></div>
+</fieldset></form>
+{% for label, records in [('Latest key verification / installation', results), ('Previous key revocation', cleanup_results)] %}{% if records %}<div class="card mb-4"><div class="card-header">{{ label }}</div><div class="card-body">{% for result in records %}<h2 class="h6">{{ result.node.hostname }} <span class="badge {{ 'text-bg-success' if result.status == 'pass' else 'text-bg-danger' }}">{{ result.status|upper }}</span> <small>{{ result.executed_at|local_datetime }}</small></h2><pre class="code-panel"><code>{{ result.output }}</code></pre>{% endfor %}</div></div>{% endif %}{% endfor %}
+{% endblock %}

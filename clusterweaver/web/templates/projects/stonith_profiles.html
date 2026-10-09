@@ -1,0 +1,57 @@
+{% extends 'base.html' %}{% from '_form_helpers.html' import render_field %}
+{% block title %}08a · STONITH profiles · {{ project.name }}
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4"><div><p class="text-secondary mb-1">Cluster STONITH Configuration and Testing</p><h1 class="h3">08a · Define DELL STONITH profiles</h1><p class="text-secondary mb-0">{{ project.name }} · {{ project.cluster_name or project.name }}</p></div><a class="btn btn-outline-secondary" href="{{ url_for('projects.detail', project_id=project.id) }}">Back to project</a></div>
+<form method="post" class="remote-operation-form" id="stonith-profiles-form">
+  {{ form.hidden_tag() }}
+  <fieldset{% if g.current_user.role == 'user' %} disabled{% endif %}>
+  <div class="card shadow-sm mb-4"><div class="card-header fw-semibold">DELL connection</div><div class="card-body"><div class="row"><div class="col-md-3">{{ render_field(form.hardware) }}{{ render_field(form.mode) }}</div><div class="col-md-9" data-stonith-mode="oem">{{ render_field(form.endpoint) }}</div></div><p class="small text-secondary mb-0">OME: HTTPS/443. Direct iDRAC: fence_ipmilan with IPMI LANPlus (UDP/623), action=status. Verification runs from the ClusterWeaver server. Passwords are used only for this request and are never saved.</p></div></div>
+  <div class="card shadow-sm mb-4" data-hardware="dell"><div class="card-header fw-semibold">DELL profile definitions</div><div class="card-body">
+    {% if form.profiles %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Hostname</th><th data-stonith-mode="oem">DELL profile in OEM</th><th data-stonith-mode="ipmi">iDRAC</th><th data-stonith-mode="ipmi">STONITH resource</th><th>Userid</th><th>Password</th></tr></thead><tbody>
+      {% for entry in form.profiles %}<tr><td>{{ entry.form.node_id }}{{ render_field(entry.form.hostname) }}</td><td data-stonith-mode="oem">{{ render_field(entry.form.profile_name) }}</td><td data-stonith-mode="ipmi">{{ render_field(entry.form.controller_endpoint) }}</td><td data-stonith-mode="ipmi">{{ render_field(entry.form.resource_name) }}</td><td>{{ render_field(entry.form.username) }}</td><td>{{ render_field(entry.form.password) }}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="text-secondary">Add nodes to the project before defining profiles.</p>{% endif %}
+    <p class="small text-secondary">Hostnames must match the project exactly. In OEM mode, profile names must match OEM including uppercase/lowercase. Save definitions without passwords, or enter a password for each row to verify. Direct IPMI reads ON/OFF status; it does not confirm controller-to-host association. No power action or resource creation is performed.</p>
+    {% if g.current_user.role in ['administrator', 'clusteradmin'] and project.nodes %}<div class="d-flex flex-wrap gap-2">{{ form.save(class='btn btn-primary') }}{{ form.verify(class='btn btn-success') }}</div>{% endif %}
+    <div class="alert alert-info mt-3 d-none operation-progress" role="status"><span class="spinner-border spinner-border-sm me-2"></span>Checking connection… OEM: 8 seconds per request. IPMI: 20 seconds per node. Total verification budget: 45 seconds.</div>
+  </div></div>
+  </fieldset>
+</form>
+<div class="card mb-4"><div class="card-header fw-semibold">08a · Fence agents on cluster nodes</div><div class="card-body">
+<p>Check installed fence-agent packages and executables on every cluster node via its configured SSH IP. Direct IPMI also verifies that <code>fence_ipmilan</code> can return metadata. OEM mode collects inventory only; a fencing agent has not yet been selected for OEM.</p>
+{% if g.current_user.role in ['administrator', 'clusteradmin'] %}
+<form method="post" action="{{ url_for('stonith.check_agents', project_id=project.id) }}" class="remote-operation-form" id="stonith-agents-form">
+{{ agents_form.hidden_tag() }}{{ render_field(agents_form.password) }}
+<p class="small text-secondary">Uses the project SSH key when available, otherwise the configured SSH password, if this field is empty. Controller passwords are not needed. Save profiles first. Passwords are never saved.</p>
+{{ agents_form.check(class='btn btn-outline-primary', disabled=not project.stonith) }}
+<div class="alert alert-info mt-3 d-none operation-progress" role="status">Checking cluster nodes… 20-second remote command limit, 10-second metadata timeout, 45-second total budget.</div>
+</form>
+{% endif %}
+<p class="mt-3 mb-1">If an agent is missing, run this as root on each affected node, then repeat the check:</p>
+<pre class="code-panel" id="fence-install-command"><code>{{ install_all_command }}</code></pre>
+<button type="button" class="btn btn-sm btn-outline-primary copy-code" data-target="fence-install-command">Copy installation command</button><div class="copy-status small text-success"></div>
+<p class="small text-secondary mt-2">The RHEL High Availability repository must be available through Satellite/subscription. Installation is manual.</p>
+{% if agent_results %}<h2 class="h6 mt-3">Latest cluster-node agent check</h2>{% endif %}
+{% for result in agent_results %}<h2 class="h6 mt-3">{{ result.node.hostname }} <span class="badge {{ 'text-bg-success' if result.status == 'pass' else 'text-bg-danger' }}">{{ result.status|upper }}</span> <small>{{ result.executed_at|local_datetime }}</small></h2><pre class="code-panel"><code>{{ result.output }}</code></pre>{% endfor %}
+{% if agent_script %}<details><summary>Read-only agent check script (run on each cluster node)</summary><pre class="code-panel"><code>{{ agent_script }}</code></pre></details>{% endif %}
+</div></div>
+{% if results %}<div class="card mb-4"><div class="card-header fw-semibold">Latest 08a verification</div><div class="card-body">{% for result in results %}<h2 class="h6">{{ result.node.hostname }} <span class="badge {{ 'text-bg-success' if result.status == 'pass' else 'text-bg-danger' }}">{{ result.status|upper }}</span> <small class="text-secondary">{{ result.executed_at|local_datetime }}</small></h2><pre class="code-panel"><code>{{ result.output }}</code></pre>{% endfor %}</div></div>{% endif %}
+{% if verification_script %}<div class="card"><div class="card-header d-flex justify-content-between"><strong>08a · Read-only verification script</strong><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#stonith-script-collapse">Show script</button><button class="btn btn-primary copy-code" type="button" data-target="stonith-script-code">Copy</button></div></div><div class="collapse" id="stonith-script-collapse"><div class="card-body"><p class="small text-secondary">Standalone Python 3 script. Prompts for passwords; contains no passwords.</p><pre class="code-panel compact-code" id="stonith-script-code"><code>{{ verification_script }}</code></pre><div class="copy-status small text-success"></div></div></div></div>{% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const mode = document.getElementById('mode');
+  const update = () => {
+    document.querySelectorAll('[data-stonith-mode]').forEach(element => {
+      const active = element.dataset.stonithMode === mode.value;
+      element.hidden = !active;
+      element.querySelectorAll('input').forEach(input => { input.disabled = !active; input.required = active; });
+    });
+    document.querySelectorAll('#stonith-profiles-form input[type="password"]').forEach(input => { document.querySelector('label[for="' + input.id + '"]').textContent = mode.value === 'ipmi' ? 'iDRAC password' : 'OEM password'; });
+    const verify = document.getElementById('verify');
+    if (verify) verify.value = mode.value === 'ipmi' ? 'Save and verify iDRAC status' : 'Save and verify OEM profiles';
+  };
+  mode.addEventListener('change', update);
+  update();
+});
+</script>
+{% endblock %}

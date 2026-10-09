@@ -208,7 +208,7 @@ def _validate_project_document(document) -> dict:
         seen_ips.update(addresses)
         node["ssh_port"] = port
         normalized_nodes.append(node)
-    return {
+    result = {
         "project": {
             "name": _text(project.get("name"), "project name", required=True, maximum=160),
             "cluster_name": cluster_name,
@@ -219,6 +219,47 @@ def _validate_project_document(document) -> dict:
         },
         "nodes": normalized_nodes,
     }
+    stonith = document.get("stonith")
+    if stonith is not None:
+        from clusterweaver.core.services.dell_oem import validate_oem_endpoint
+        if not isinstance(stonith, dict) or stonith.get("hardware") != "dell":
+            raise ProjectTransferError("Unsupported STONITH profile hardware.")
+        mode = stonith.get("mode", "oem")
+        if mode not in {"oem", "ipmi"}:
+            raise ProjectTransferError("Unsupported STONITH connection mode.")
+        endpoint = _text(stonith.get("endpoint"), "OEM endpoint", required=mode == "oem", maximum=253)
+        try:
+            if mode == "oem":
+                validate_oem_endpoint(endpoint)
+        except ValueError as exc:
+            raise ProjectTransferError(str(exc)) from exc
+        raw_profiles = stonith.get("profiles")
+        if not isinstance(raw_profiles, list) or len(raw_profiles) > len(normalized_nodes):
+            raise ProjectTransferError("Invalid STONITH profiles.")
+        hostnames = {node["hostname"] for node in normalized_nodes}
+        assigned, names, profiles = set(), set(), []
+        for profile in raw_profiles:
+            if not isinstance(profile, dict):
+                raise ProjectTransferError("Invalid STONITH profile.")
+            hostname = _text(profile.get("hostname"), "STONITH hostname", required=True, maximum=253)
+            name = _text(profile.get("profile_name"), "DELL profile name", required=mode == "oem", maximum=160)
+            controller = _text(profile.get("controller_endpoint"), "iDRAC endpoint", required=mode == "ipmi", maximum=253)
+            resource = _text(profile.get("resource_name"), "STONITH resource name", required=mode == "ipmi", maximum=160)
+            if mode == "ipmi":
+                from clusterweaver.core.services.dell_ipmi import validate_ipmi_definition
+                try:
+                    validate_ipmi_definition(controller, resource)
+                except ValueError as exc:
+                    raise ProjectTransferError(str(exc)) from exc
+            unique_name = name if mode == "oem" else resource
+            username = _text(profile.get("username"), "OEM userid", required=True, maximum=128)
+            if hostname not in hostnames or hostname in assigned or unique_name.casefold() in names or ":" in username:
+                raise ProjectTransferError("Invalid or duplicate STONITH hostname, profile, or userid.")
+            assigned.add(hostname)
+            names.add(unique_name.casefold())
+            profiles.append(dict(hostname=hostname, profile_name=name, username=username, controller_endpoint=controller, resource_name=resource))
+        result["stonith"] = dict(hardware="dell", mode=mode, endpoint=endpoint, profiles=profiles)
+    return result
 
 
 def read_project_archive(upload) -> dict:

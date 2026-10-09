@@ -4,9 +4,15 @@ import base64
 import hashlib
 import shlex
 import time
+import os
+import stat
+import fcntl
+import tempfile
 from dataclasses import dataclass
 
 import paramiko
+
+from clusterweaver.core.services.ssh_credentials import SSHCredentials, redact_output
 
 
 DISCOVERY_COMMAND = """set -o pipefail
@@ -38,27 +44,103 @@ def _fingerprint(key: paramiko.PKey) -> str:
     return "SHA256:" + base64.b64encode(digest).decode("ascii").rstrip("=")
 
 
-def _connect(node, password: str) -> tuple[paramiko.SSHClient, str]:
+class ProjectHostKeyPolicy(paramiko.MissingHostKeyPolicy):
+    def __init__(self, credentials):
+        self.credentials = credentials
+
+    def missing_host_key(self, client, hostname, key):
+        credentials = self.credentials
+        existing = client.get_host_keys().lookup(hostname)
+        if existing:
+            raise ValueError("SSH host key changed for " + hostname + "; verify the node fingerprint before updating known_hosts.")
+        if credentials.expected_host_key is not None:
+            if key != credentials.expected_host_key:
+                raise ValueError("SSH host key at the new IP does not match the original node; network rollback remains armed.")
+        elif not credentials.enroll_host:
+            raise ValueError("SSH host identity is not enrolled for " + hostname + "; install the project public key using the current root password first.")
+        path = credentials.known_hosts
+        if path is None:
+            raise ValueError("Project known_hosts file is not configured.")
+        fd = os.open(str(path) + '.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            keys = paramiko.HostKeys()
+            if path.exists() or path.is_symlink():
+                _check_credential_file(path)
+                keys.load(str(path))
+            known = keys.lookup(hostname)
+            if known and not keys.check(hostname, key):
+                raise ValueError("Conflicting SSH host key detected while enrolling " + hostname + ".")
+            keys.add(hostname, key.get_name(), key)
+            tmp_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix='.known-hosts-')
+            os.close(tmp_fd)
+            try:
+                keys.save(tmp_name)
+                os.replace(tmp_name, path)
+            finally:
+                if os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+            client.get_host_keys().add(hostname, key.get_name(), key)
+        finally:
+            os.close(fd)
+
+
+def _check_credential_file(path):
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o077:
+        raise ValueError("SSH credentials must be service-owned regular files with mode 0600.")
+
+
+def _connect(node, password) -> tuple[paramiko.SSHClient, str]:
     if not node.bootstrap_ip:
         raise ValueError("SSH bootstrap IP is not configured.")
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        hostname=node.bootstrap_ip,
-        port=node.ssh_port or 22,
-        username="root",
-        password=password,
-        look_for_keys=False,
-        allow_agent=False,
-        timeout=8,
-        banner_timeout=8,
-        auth_timeout=8,
-    )
-    transport = client.get_transport()
-    if transport is None:
+    credentials = password if isinstance(password, SSHCredentials) else None
+    try:
+        pkey = None
+        if credentials:
+            if credentials.private_key is not None:
+                _check_credential_file(credentials.private_key)
+                pkey = paramiko.RSAKey.from_private_key_file(str(credentials.private_key))
+            if credentials.known_hosts and (credentials.known_hosts.exists() or credentials.known_hosts.is_symlink()):
+                _check_credential_file(credentials.known_hosts)
+                client.load_host_keys(str(credentials.known_hosts))
+            client.set_missing_host_key_policy(ProjectHostKeyPolicy(credentials))
+        else:
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        connection_options = {}
+        if credentials and credentials.expected_host_key is not None:
+            # On a new management IP Paramiko has no hostname entry to prefer the
+            # original host-key type. Negotiate that same type before comparing it.
+            allowed = {credentials.expected_host_key.get_name()}
+            if "ssh-rsa" in allowed:
+                allowed.update({"rsa-sha2-256", "rsa-sha2-512"})
+            connection_options["disabled_algorithms"] = {
+                "keys": [algorithm for algorithm in paramiko.Transport._preferred_keys if algorithm not in allowed]
+            }
+        client.connect(
+            hostname=node.bootstrap_ip,
+            port=node.ssh_port or 22,
+            username="root",
+            password=(None if pkey else credentials.password) if credentials else password,
+            pkey=pkey,
+            look_for_keys=False,
+            allow_agent=False,
+            timeout=8,
+            banner_timeout=8,
+            auth_timeout=8,
+            **connection_options,
+        )
+        transport = client.get_transport()
+        if transport is None:
+            raise ConnectionError("SSH transport was not established.")
+        key = transport.get_remote_server_key()
+        if credentials and credentials.expected_host_key is not None and key != credentials.expected_host_key:
+            raise ValueError("SSH host key does not match the original node.")
+        return client, _fingerprint(key)
+    except Exception:
         client.close()
-        raise ConnectionError("SSH transport was not established.")
-    return client, _fingerprint(transport.get_remote_server_key())
+        raise
 
 
 def _run(client: paramiko.SSHClient, command: str) -> tuple[int, str]:
@@ -89,7 +171,7 @@ def _collect_channel(channel, timeout: int) -> tuple[int, str]:
             time.sleep(0.01)
 
 
-def discover_node(node, password: str) -> SSHResult:
+def discover_node(node, password: str | SSHCredentials) -> SSHResult:
     endpoint = f"{node.bootstrap_ip or '<not configured>'}:{node.ssh_port or 22}"
     try:
         client, fingerprint = _connect(node, password)
@@ -97,12 +179,12 @@ def discover_node(node, password: str) -> SSHResult:
             status, output = _run(client, DISCOVERY_COMMAND)
         finally:
             client.close()
-        return SSHResult(node.hostname, endpoint, status == 0, output, fingerprint)
+        return SSHResult(node.hostname, endpoint, status == 0, redact_output(output, password), fingerprint)
     except Exception as exc:  # Paramiko exposes several transport-specific exceptions.
-        return SSHResult(node.hostname, endpoint, False, str(exc))
+        return SSHResult(node.hostname, endpoint, False, redact_output(str(exc), password))
 
 
-def run_remote_script(node, password: str, script: str) -> SSHResult:
+def run_remote_script(node, password: str | SSHCredentials, script: str) -> SSHResult:
     """Stream a reviewed script to bash without creating a remote file."""
     endpoint = f"{node.bootstrap_ip or '<not configured>'}:{node.ssh_port or 22}"
     try:
@@ -114,12 +196,12 @@ def run_remote_script(node, password: str, script: str) -> SSHResult:
             status, output = _collect_channel(stdout.channel, timeout=120)
         finally:
             client.close()
-        return SSHResult(node.hostname, endpoint, status == 0, output, fingerprint)
+        return SSHResult(node.hostname, endpoint, status == 0, redact_output(output, password), fingerprint)
     except Exception as exc:
-        return SSHResult(node.hostname, endpoint, False, str(exc))
+        return SSHResult(node.hostname, endpoint, False, redact_output(str(exc), password))
 
 
-def bootstrap_peer_keys(nodes, password: str) -> list[SSHResult]:
+def bootstrap_peer_keys(nodes, password: str | SSHCredentials) -> list[SSHResult]:
     connected: list[tuple[object, paramiko.SSHClient, str]] = []
     results: list[SSHResult] = []
     key_command = (
@@ -140,7 +222,7 @@ def bootstrap_peer_keys(nodes, password: str) -> list[SSHResult]:
                     continue
                 connected.append((node, client, public_key.strip()))
             except Exception as exc:
-                results.append(SSHResult(node.hostname, endpoint, False, str(exc)))
+                results.append(SSHResult(node.hostname, endpoint, False, redact_output(str(exc), password)))
 
         for target, client, _target_key in connected:
             peer_keys = [key for node, _client, key in connected if node.id != target.id]
@@ -161,4 +243,6 @@ def bootstrap_peer_keys(nodes, password: str) -> list[SSHResult]:
     finally:
         for _node, client, _key in connected:
             client.close()
+    for result in results:
+        result.output = redact_output(result.output, password)
     return results

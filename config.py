@@ -17,7 +17,10 @@ class Config:
     HOST = os.environ.get("CLUSTERWEAVER_HOST", "127.0.0.1")
     PORT = int(os.environ.get("CLUSTERWEAVER_PORT", "5000"))
     DEBUG = os.environ.get("CLUSTERWEAVER_DEBUG", "0").lower() in {"1", "true", "yes"}
+    SSH_KEYS_ROOT = os.environ.get("CLUSTERWEAVER_SSH_KEYS_ROOT")
+    SSH_SOURCE_IP = os.environ.get("CLUSTERWEAVER_SSH_SOURCE_IP", "")
     SSH_BOOTSTRAP_PASSWORD = os.environ.get("CLUSTERWEAVER_SSH_BOOTSTRAP_PASSWORD", "")
+    OEM_CA_FILE = os.environ.get("CLUSTERWEAVER_OEM_CA_FILE", "")
     LOGIN_USERNAME = os.environ.get("CLUSTERWEAVER_LOGIN_USERNAME", "admin")
     LOGIN_PASSWORD = os.environ.get("CLUSTERWEAVER_LOGIN_PASSWORD", "changeme")
     LOGIN_DISABLED = False

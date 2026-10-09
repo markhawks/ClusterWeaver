@@ -37,6 +37,7 @@ class ProjectData:
     group_color: str = ""
     hypervisor: str = ""
     hardware: str = ""
+    stonith: dict | None = None
     nodes: list[NodeData] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None

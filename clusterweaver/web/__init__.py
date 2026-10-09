@@ -69,10 +69,16 @@ def create_app(config_object=Config, **overrides) -> Flask:
     from clusterweaver.web.routes.auth import auth_bp
     from clusterweaver.web.routes.projects import projects_bp
     from clusterweaver.web.routes.settings import settings_bp
+    from clusterweaver.web.routes.stonith import stonith_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(stonith_bp)
+    from clusterweaver.web.routes.ssh_access import ssh_access_bp
+    app.register_blueprint(ssh_access_bp)
+    from clusterweaver.web.routes.cluster_operations import cluster_operations_bp
+    app.register_blueprint(cluster_operations_bp)
 
     @app.before_request
     def require_login():
@@ -102,11 +108,15 @@ def create_app(config_object=Config, **overrides) -> Flask:
                 "projects.download_package_install",
                 "projects.download_pcsd_auth",
                 "projects.download_cluster_setup",
+                "stonith.profiles", "ssh_access.manage",
+                "cluster_operations.start", "cluster_operations.history",
                 "settings.configuration", "settings.change_password", "auth.logout",
             }
-            allowed_posts = {"settings.change_password", "settings.change_theme", "auth.logout"}
+            allowed_posts = {"settings.change_password", "settings.change_theme", "auth.logout", "cluster_operations.start"}
             if request.endpoint not in read_only_endpoints or (request.method != "GET" and request.endpoint not in allowed_posts):
                 abort(403)
         return None
 
+    from clusterweaver.web.routes.cluster_operations import protect_running_operation
+    app.before_request(protect_running_operation)
     return app

@@ -27,6 +27,15 @@ def to_domain(record: ProjectRecord) -> ProjectData:
         platform_type=record.platform_type,
         hypervisor=record.hypervisor,
         hardware=record.hardware,
+        stonith={
+            "hardware": record.stonith_configuration.hardware,
+            "mode": record.stonith_configuration.mode,
+            "endpoint": record.stonith_configuration.endpoint,
+            "profiles": [
+                {"hostname": profile.node.hostname, "profile_name": profile.profile_name, "username": profile.username, "controller_endpoint": profile.controller_endpoint, "resource_name": profile.resource_name}
+                for profile in sorted(record.stonith_configuration.profiles, key=lambda item: item.node.hostname.lower())
+            ],
+        } if record.stonith_configuration else None,
         node_count=record.node_count,
         created_at=record.created_at,
         updated_at=record.updated_at,

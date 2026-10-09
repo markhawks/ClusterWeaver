@@ -1,0 +1,20 @@
+{% set stonith_results = workflow_results.get('08a', []) %}
+<div class="card shadow-sm mt-4 workflow-phase">
+  <div class="card-header workflow-phase-header d-flex flex-wrap gap-3 justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-3"><span class="workflow-phase-icon">{{ icon('cluster-settings') }}</span><div><h3 class="h5 mb-0">Cluster STONITH Configuration and Testing</h3><small>Step 08a · DELL OEM or direct iDRAC / IPMI definitions and read-only verification</small></div></div>
+    <button class="btn btn-sm btn-outline-dark collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#stonith-workflow" aria-expanded="true">Hide</button>
+  </div>
+  <div id="stonith-workflow" class="collapse show"><div class="card-body">
+    <article class="card workflow-step"><div class="row g-0">
+      <div class="col-lg-4 workflow-description p-4"><span class="badge text-bg-secondary mb-2">Step 08a</span><h3 class="h5">Define and verify DELL profiles</h3><p class="text-secondary">Choose OEM profiles or a dedicated iDRAC endpoint for every node. Verify OEM assignments or read IPMI power status, and check fence agents on every cluster node.</p><p class="small mb-0">Connection: <strong>{{ ('Direct iDRAC / IPMI' if project.stonith.mode == 'ipmi' else project.stonith.endpoint) if project.stonith else 'Not configured' }}</strong></p></div>
+      <div class="col-lg-8 border-start-lg"><div class="card-header d-flex justify-content-between align-items-center"><strong>08a · Profile definitions</strong><a id="workflow-run-08a" class="btn btn-primary" href="{{ url_for('stonith.profiles', project_id=project.id) }}">{{ 'View profiles' if g.current_user.role == 'user' else 'Define / verify profiles' }}</a></div>
+        <div class="card-body">
+          {% if project.stonith %}<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Hostname</th><th>{{ "iDRAC / resource" if project.stonith.mode == "ipmi" else "DELL profile in OEM" }}</th><th>Userid</th></tr></thead><tbody>{% for profile in project.stonith.profiles %}<tr><td>{{ profile.hostname }}</td><td>{{ (profile.controller_endpoint ~ " / " ~ profile.resource_name) if project.stonith.mode == "ipmi" else profile.profile_name }}</td><td>{{ profile.username }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-secondary">No profiles defined.</p>{% endif %}
+          {% if stonith_results %}<div class="small fw-semibold text-uppercase text-secondary mb-2">Latest execution</div>{% for result in stonith_results %}<div class="workflow-result-row d-flex justify-content-between align-items-center mb-2"><strong>{{ result.node.hostname }}</strong><span><span class="badge {{ 'text-bg-success' if result.status == 'pass' else 'text-bg-danger' }}">{{ result.status|upper }}</span> <small class="text-secondary">{{ result.executed_at|local_datetime }}</small></span></div>{% endfor %}{% endif %}
+          {% set agent_results = workflow_results.get('08a-fa', []) %}
+          {% if agent_results %}<div class="small fw-semibold text-uppercase text-secondary mt-3 mb-2">Latest node agent check</div>{% for result in agent_results %}<div class="d-flex justify-content-between mb-2"><strong>{{ result.node.hostname }}</strong><span class="badge {{ 'text-bg-success' if result.status == 'pass' else 'text-bg-danger' }}">{{ result.status|upper }}</span></div>{% endfor %}{% endif %}
+        </div>
+      </div>
+    </div></article>
+  </div></div>
+</div>

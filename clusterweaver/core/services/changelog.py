@@ -34,7 +34,10 @@ def read_changelog(path: Path) -> list[ChangelogRelease]:
         elif line.startswith("### ") and current_release:
             current_section = ChangelogSection(line.removeprefix("### "))
             current_release.sections.append(current_section)
-        elif line.startswith("- ") and current_section:
+        elif line.startswith("- ") and current_release:
+            if current_section is None:
+                current_section = ChangelogSection("Changes")
+                current_release.sections.append(current_section)
             current_section.items.append(line.removeprefix("- "))
     return releases
 

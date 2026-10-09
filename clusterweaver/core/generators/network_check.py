@@ -42,8 +42,17 @@ def generate_network_check(project: ProjectData) -> str:
             f"    SECONDARY_IFACE={_q(node.secondary_interface)}",
             "    ;;",
         ])
+    lines.extend(["  *)"])
+    for node in sorted(project.nodes, key=lambda item: item.hostname.lower()):
+        lines.extend([
+            f"    CONFIGURED_HOSTNAME={_q(node.hostname)}",
+            '    if [[ "${NODE_HOSTNAME,,}" == "${CONFIGURED_HOSTNAME,,}" ]]; then',
+            '      echo "FAIL: hostname differs only in uppercase/lowercase: detected \'${NODE_HOSTNAME}\', configured \'${CONFIGURED_HOSTNAME}\'. Step 02 requires an exact, case-sensitive match. Update the node hostname in ClusterWeaver to match hostname -s."',
+            "      exit 2",
+            "    fi",
+        ])
     lines.extend([
-        "  *)", '    echo "FAIL: ${NODE_HOSTNAME} is not defined in this ClusterWeaver project."', "    exit 2", "    ;;", "esac", "",
+        '    echo "FAIL: ${NODE_HOSTNAME} is not defined in this ClusterWeaver project."', "    exit 2", "    ;;", "esac", "",
         'ACTUAL_RELEASE="$(. /etc/os-release 2>/dev/null; printf %s "${VERSION_ID:-unknown}")"',
         'if [[ "${ACTUAL_RELEASE}" == "${EXPECTED_RELEASE}" ]]; then pass "RHEL ${EXPECTED_RELEASE} detected"; else fail "detected release ${ACTUAL_RELEASE}, expected RHEL ${EXPECTED_RELEASE}"; fi',
         'if ! command -v nmcli >/dev/null 2>&1; then fail "nmcli is not installed"; fi', "",

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from clusterweaver.persistence.database import Base
@@ -48,6 +48,10 @@ class ProjectRecord(Base):
     )
     step_executions: Mapped[list["StepExecutionRecord"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     group: Mapped[ProjectGroupRecord | None] = relationship(back_populates="projects")
+    operation_jobs: Mapped[list["ClusterOperationRecord"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    stonith_configuration: Mapped["StonithConfigurationRecord | None"] = relationship(
+        back_populates="project", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class NodeRecord(Base):
@@ -70,6 +74,37 @@ class NodeRecord(Base):
     ssh_port: Mapped[int] = mapped_column(Integer, default=22)
     project: Mapped[ProjectRecord] = relationship(back_populates="nodes")
     step_executions: Mapped[list["StepExecutionRecord"]] = relationship(back_populates="node", cascade="all, delete-orphan")
+    stonith_profile: Mapped["StonithProfileRecord | None"] = relationship(
+        back_populates="node", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class StonithConfigurationRecord(Base):
+    __tablename__ = "stonith_configurations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), unique=True)
+    hardware: Mapped[str] = mapped_column(String(20), default="dell")
+    mode: Mapped[str] = mapped_column(String(20), default="oem")
+    endpoint: Mapped[str] = mapped_column(String(253))
+    project: Mapped[ProjectRecord] = relationship(back_populates="stonith_configuration")
+    profiles: Mapped[list["StonithProfileRecord"]] = relationship(
+        back_populates="configuration", cascade="all, delete-orphan"
+    )
+
+
+class StonithProfileRecord(Base):
+    __tablename__ = "stonith_profiles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    configuration_id: Mapped[int] = mapped_column(ForeignKey("stonith_configurations.id", ondelete="CASCADE"))
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), unique=True)
+    controller_endpoint: Mapped[str] = mapped_column(String(253), default="")
+    resource_name: Mapped[str] = mapped_column(String(160), default="")
+    profile_name: Mapped[str] = mapped_column(String(160))
+    username: Mapped[str] = mapped_column(String(128))
+    configuration: Mapped[StonithConfigurationRecord] = relationship(back_populates="profiles")
+    node: Mapped[NodeRecord] = relationship(back_populates="stonith_profile")
 
 
 class StepExecutionRecord(Base):
@@ -99,3 +134,19 @@ class UserRecord(Base):
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     theme: Mapped[str] = mapped_column(String(16), default="dark")
+
+
+class ClusterOperationRecord(Base):
+    __tablename__ = "cluster_operations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    active_project_id: Mapped[int | None] = mapped_column(Integer, nullable=True, unique=True)
+    action: Mapped[str] = mapped_column(String(20))
+    target_node: Mapped[str] = mapped_column(String(253), default="")
+    username: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(20), default="queued")
+    phase: Mapped[str] = mapped_column(String(80), default="Queued")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    results: Mapped[list] = mapped_column(JSON, default=list)
+    project: Mapped[ProjectRecord] = relationship(back_populates="operation_jobs")

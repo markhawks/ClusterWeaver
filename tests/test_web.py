@@ -26,7 +26,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
     page = login_client.get("/login")
     assert b"ClusterWeaver project logo" in page.data
-    assert b"Version 0.1.11" in page.data
+    assert b"Version 0.1.12" in page.data
     assert b"remotely executes controlled workflows" in page.data
     assert b'<html lang="en" data-bs-theme="dark">' in page.data
     assert b'<body class="login-page">' in page.data
@@ -242,7 +242,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Changelog" in response.data and b"Changelog <small" not in response.data
     assert b"Configuration" in response.data and b"About ClusterWeaver" in response.data
     assert b"github.com/markhawks/ClusterWeaver" in response.data and b"Author: Mark Hawks" in response.data and b"Gunicorn" in response.data
-    assert "ClusterWeaver</strong><span>– Version 0.1.11</span>".encode() in response.data
+    assert "ClusterWeaver</strong><span>– Version 0.1.12</span>".encode() in response.data
     assert b"Linux High Availability Cluster Builder &amp; Lifecycle Manager" in response.data
     assert b'rel="icon"' in response.data
     assert b'/static/css/app.css?v=' in response.data and b'/static/js/app.js?v=' in response.data
