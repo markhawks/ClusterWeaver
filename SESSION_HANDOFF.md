@@ -5,7 +5,9 @@ Updated: 2026-10-30 (Europe/Rome)
 ## Session closure: 0.1.13 (2026-10-30)
 
 - Checkout: `/root/ClusterWeaver-main`, branch `main`; version/tag: `0.1.13` / `v0.1.13`.
-- Release notes: `CHANGELOG.md`, dated `2026-10-30`. GitHub publication and final deployment verification are recorded below after completion.
+- Release notes: `CHANGELOG.md`, dated `2026-10-30`.
+- Published release commit: `e571893`; tag: `v0.1.13`; release: <https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.13>. Release is public (not draft/prerelease), with zero uploaded assets.
+- Local installation aligned to 0.1.13 at `/opt/clusterweaver/app`; `clusterweaver-control.service` active, database current and login reachable. Deployment backup: `/var/lib/clusterweaver/backups/clusterweaver-20261030T171249Z-64778.db`.
 - The pre-existing empty npm manifests were preserved outside the Python release at `/var/tmp/clusterweaver-session-20261030-untracked/`.
 - Offline installation remains deprecated. Do not build or upload offline installation bundles; this release has no uploaded binary assets.
 - Step 08a saves controller passwords encrypted in SQLite, reuses them for verification, and exposes a CSRF-protected show/hide control only to administrators and clusteradmins. Blank fields retain saved credentials for unchanged controller/mode/userid. Passwords and ciphertext remain excluded from YAML/Git, scripts and portable project exports.
