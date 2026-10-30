@@ -1,6 +1,29 @@
 # ClusterWeaver session handoff
 
-Updated: 2026-10-09 (Europe/Rome)
+Updated: 2026-10-30 (Europe/Rome)
+
+## Session closure: 0.1.13 (2026-10-30)
+
+- Checkout: `/root/ClusterWeaver-main`, branch `main`; version/tag: `0.1.13` / `v0.1.13`.
+- Release notes: `CHANGELOG.md`, dated `2026-10-30`. GitHub publication and final deployment verification are recorded below after completion.
+- The pre-existing empty npm manifests were preserved outside the Python release at `/var/tmp/clusterweaver-session-20261030-untracked/`.
+- Offline installation remains deprecated. Do not build or upload offline installation bundles; this release has no uploaded binary assets.
+- Step 08a saves controller passwords encrypted in SQLite, reuses them for verification, and exposes a CSRF-protected show/hide control only to administrators and clusteradmins. Blank fields retain saved credentials for unchanged controller/mode/userid. Passwords and ciphertext remain excluded from YAML/Git, scripts and portable project exports.
+- Validation: 117 tests passed; Git whitespace, JavaScript syntax and shell syntax checks passed. WTForms emits existing tuple-choice deprecation warnings.
+- Alembic head: `0018_stonith_passwords`. Back up the service-owned encryption key directory (`PROJECTS_ROOT.parent/stonith_secrets`, override `CLUSTERWEAVER_STONITH_SECRETS_ROOT`) securely with SQLite; the database alone cannot recover saved passwords. Credentials entered in older releases must be re-entered once.
+- Direct iDRAC/IPMI status runs via project SSH on each cluster node against its associated iDRAC. The agent is required on the nodes, not the web server. OEM HTTPS checks still run on ClusterWeaver.
+- Show/Copy verification script controls are beside profile Save/Verify. The manual IPMI script runs on a cluster node and prompts for passwords; it checks the saved definitions, not unsaved form changes.
+- Native updates repair staged virtual-environment launcher paths. Local HTTP checks bypass proxies and retry while the service starts. Existing deployment fixes are in `setup/update-local.sh`, `setup/relocate-venv.py` and `setup/check.sh`.
+- Real validation: key-only SSH and read-only iDRAC status passed on both tested nodes; both controllers reported ON. Results were persisted as PASS in steps 00k and 08a. No power actions or cluster lifecycle changes were performed.
+
+### SSH decision deferred — resume here next session
+
+- The user wants to reuse the key called `clusterweaver-bootstrap` and remove the extra project key added during diagnosis. This migration has NOT been implemented, and no key has been removed.
+- Inspection established that step 00b generates a different Ed25519 key with comment `clusterweaver-bootstrap` on each node for node-to-node trust. These are not a single server-side identity.
+- The local root RSA key is a separate identity and already reaches the tested nodes. Root access uses the configured SSH IP with the trusted hostname as `HostKeyAlias`; strict host-key checking remains enabled.
+- The web service runs as `clusterweaver`. The currently working implementation uses a service-owned project key; its public key was added via the existing strictly verified root SSH access, restricted to the source IP each node observes. The root private key was not copied into the service, and existing authorized keys were preserved.
+- Pending user clarification: reuse the already-authorized local server RSA key for service access, or literally transfer a node-generated bootstrap identity. Do not claim these are the same key. Do not remove the working project key until the chosen replacement has been verified on every node.
+- Next session: resolve this key choice, make step 00 bootstrap repeatable for subsequent clusters, then resume read-only tests on other clusters. Actual fencing/power tests remain outside completed validation.
 
 ## Session closure: 0.1.12 (2026-10-09)
 

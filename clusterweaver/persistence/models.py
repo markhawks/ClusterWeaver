@@ -101,6 +101,7 @@ class StonithProfileRecord(Base):
     node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), unique=True)
     controller_endpoint: Mapped[str] = mapped_column(String(253), default="")
     resource_name: Mapped[str] = mapped_column(String(160), default="")
+    password_encrypted: Mapped[str] = mapped_column(Text, default="")
     profile_name: Mapped[str] = mapped_column(String(160))
     username: Mapped[str] = mapped_column(String(128))
     configuration: Mapped[StonithConfigurationRecord] = relationship(back_populates="profiles")

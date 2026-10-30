@@ -18,5 +18,5 @@ if [[ "${current_revision}" != *"${head_revision}"* ]]; then
     echo "Database migration mismatch: current=${current_revision}, head=${head_revision}" >&2
     exit 1
 fi
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:5000/login >/dev/null
+curl --noproxy '*' --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 http://127.0.0.1:5000/login >/dev/null
 echo "ClusterWeaver check passed: service active, database current, login reachable."

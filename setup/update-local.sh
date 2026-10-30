@@ -91,6 +91,7 @@ if ! cmp -s "${source_dir}/requirements.txt" "${app_dir}/requirements.txt"; then
     python3 -m venv "${stage_venv}"
     "${stage_venv}/bin/python" -m pip install --upgrade pip
     "${stage_venv}/bin/python" -m pip install -r "${source_dir}/requirements.txt"
+    "${stage_venv}/bin/python" "${source_dir}/setup/relocate-venv.py" "${stage_venv}" "${venv_dir}"
 fi
 
 if systemctl is-active --quiet "${service}"; then

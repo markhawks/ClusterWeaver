@@ -6,6 +6,19 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-10-30
+
+### Changed
+
+- Step 08a profile actions now include adjacent Show/Copy verification script controls, with the manual script and execution instructions placed before the agent checks.
+- Step 08a now saves controller passwords encrypted in SQLite with a separate service-owned key, reuses them for verification and provides an authorized show/hide button. Secrets remain excluded from YAML, Git, scripts and portable exports. Migration `0018_stonith_passwords` is required.
+
+### Fixed
+
+- Step 08a direct IPMI checks now connect over project SSH to each cluster node and execute the status agent there against its associated iDRAC. The web host no longer needs a local IPMI agent or direct controller connectivity.
+- Native updates now repair staged virtual-environment launchers before moving them, and local health checks bypass HTTP proxies and allow service startup time.
+- Direct iDRAC verification also searches standard sbin locations for `fence_ipmilan` when the service PATH omits them, with clearer missing/execution diagnostics.
+
 ## [0.1.12] - 2026-10-09
 
 ### Added

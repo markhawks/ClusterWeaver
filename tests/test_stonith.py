@@ -203,7 +203,7 @@ def test_stonith_database_migration(tmp_path):
     assert result.returncode == 0, result.stderr
     import sqlite3
     with sqlite3.connect(tmp_path / "migrated.db") as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0017_cluster_operations"
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0018_stonith_passwords"
         assert "password" not in {row[1] for row in connection.execute("PRAGMA table_info(stonith_profiles)")}
     result = subprocess.run([str(executable), "-m", "alembic", "downgrade", "0014_user_password_change"], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -262,6 +262,161 @@ def test_ipmi_status_only_timeout_redaction_and_script(monkeypatch):
     monkeypatch.setattr(dell_ipmi.subprocess, 'run', timeout)
     assert 'timed out' in verify_ipmi_profiles([profile])[0].output
     monkeypatch.setattr(dell_ipmi.shutil, 'which', lambda name: None)
+    monkeypatch.setattr(dell_ipmi.Path, 'is_file', lambda path: False)
     assert 'missing' in verify_ipmi_profiles([profile])[0].output
     profile['password'] = 'secret\naction=off'
     assert 'newlines' in verify_ipmi_profiles([profile])[0].output
+
+
+def test_controller_password_encrypted_reused_revealed_and_not_exported(client, app, stonith_project, monkeypatch):
+    import tarfile
+    from cryptography.fernet import Fernet
+    project = stonith_project
+    path = f'/projects/{project.id}/stonith/profiles'
+    data = profile_data(project)
+    assert client.post(path, data=data).status_code == 302
+    config = db.session.query(StonithConfigurationRecord).one()
+    profile = config.profiles[0]
+    token = profile.password_encrypted
+    assert token and 'not-a-real-secret' not in token
+    assert b'not-a-real-secret' not in client.get(path).data
+    assert b'stonith-password-toggle' in client.get(path).data
+    reveal = f'/projects/{project.id}/stonith/profiles/{profile.node_id}/password'
+    response = client.post(reveal)
+    assert response.json == {'password': 'not-a-real-secret'}
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert client.get(reveal).status_code == 405
+    assert client.post(f'/projects/{project.id}/stonith/profiles/999999/password').status_code == 404
+    observed = []
+    def verify(endpoint, profiles, ca_file):
+        observed.extend(profiles)
+        return [SimpleNamespace(hostname=p['hostname'], endpoint=endpoint, ok=True, output='verified', fingerprint='') for p in profiles]
+    monkeypatch.setattr('clusterweaver.web.routes.stonith.verify_oem_profiles', verify)
+    data = profile_data(project, verify=True)
+    for index in range(2):
+        data[f'profiles-{index}-password'] = ''
+    assert client.post(path, data=data).status_code == 200
+    assert [p['password'] for p in observed] == ['not-a-real-secret'] * 2
+    assert profile.password_encrypted == token
+    archive = client.get(f'/projects/{project.id}/export.cwp')
+    with tarfile.open(fileobj=BytesIO(archive.data), mode='r:*') as package:
+        contents = b''.join(package.extractfile(m).read() for m in package.getmembers() if m.isfile())
+    assert b'not-a-real-secret' not in contents and token.encode() not in contents
+    imported = client.post('/projects/import', data={'archive': (BytesIO(archive.data), 'example.cwp')}, content_type='multipart/form-data')
+    assert imported.status_code == 302
+    imported_config = db.session.query(StonithConfigurationRecord).filter(StonithConfigurationRecord.id != config.id).one()
+    assert all(not p.password_encrypted for p in imported_config.profiles)
+    data = profile_data(project)
+    for index in range(2):
+        data[f'profiles-{index}-password'] = ''
+    data['profiles-0-username'] = 'another-user'
+    assert client.post(path, data=data).status_code == 302
+    assert profile.password_encrypted == ''
+    # Ciphertext is never recoverable with a different service key.
+    profile.password_encrypted = token
+    db.session.commit()
+    key = Path(app.config['PROJECTS_ROOT']).parent / 'stonith_secrets' / 'key'
+    key.write_bytes(Fernet.generate_key())
+    response = client.post(reveal)
+    assert response.status_code == 409 and 'cannot be decrypted' in response.json['error']
+
+
+def test_reveal_requires_role_and_csrf(client, app, stonith_project):
+    from clusterweaver.persistence.models import UserRecord
+    from werkzeug.security import generate_password_hash
+    project = stonith_project
+    client.post(f'/projects/{project.id}/stonith/profiles', data=profile_data(project))
+    profile = db.session.query(StonithProfileRecord).first()
+    path = f'/projects/{project.id}/stonith/profiles/{profile.node_id}/password'
+    app.config['WTF_CSRF_ENABLED'] = True
+    assert client.post(path).status_code == 400
+    import re
+    page = client.get(f'/projects/{project.id}/stonith/profiles')
+    csrf_token = re.search(rb'name="csrf_token"[^>]*value="([^"]+)"', page.data).group(1).decode()
+    assert client.post(path, data={'csrf_token': csrf_token}).json == {'password': 'not-a-real-secret'}
+    app.config['WTF_CSRF_ENABLED'] = False
+    user = UserRecord(username='reader', password_hash=generate_password_hash('example-password'), role='user')
+    db.session.add(user)
+    db.session.commit()
+    app.config['LOGIN_DISABLED'] = False
+    with client.session_transaction() as session:
+        session['authenticated'], session['user_id'] = True, user.id
+    assert client.post(path).status_code == 403
+    assert b'stonith-password-toggle' not in client.get(f'/projects/{project.id}/stonith/profiles').data
+
+
+def test_ipmi_finds_standard_sbin_agent_without_path(monkeypatch):
+    from clusterweaver.core.services import dell_ipmi
+    monkeypatch.setattr(dell_ipmi.shutil, 'which', lambda name: None)
+    monkeypatch.setattr(dell_ipmi.Path, 'is_file', lambda path: str(path) == '/usr/sbin/fence_ipmilan')
+    monkeypatch.setattr(dell_ipmi.os, 'access', lambda path, mode: True)
+    calls = []
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=0, stdout='Status: ON\n', stderr='')
+    monkeypatch.setattr(dell_ipmi.subprocess, 'run', run)
+    output = dell_ipmi.inspect_ipmi(dict(hostname='node01', controller_endpoint='192.0.2.10', resource_name='fence-node01', username='operator', password='example-secret'), time.monotonic() + 45)
+    assert 'Status: ON' in output
+    assert calls == [['/usr/sbin/fence_ipmilan']]
+
+
+def test_ipmi_verification_runs_each_controller_on_its_cluster_node(monkeypatch):
+    import json
+    from io import StringIO
+    from clusterweaver.core.services import ssh_bootstrap
+    from clusterweaver.core.services.stonith import verify_ipmi_profiles_on_nodes
+    from clusterweaver.core.services.ssh_credentials import SSHCredentials
+    calls = []
+    closed = []
+    profiles = [dict(hostname=f'node0{i}', controller_endpoint=f'192.0.2.{i}', resource_name=f'fence-node0{i}', username='operator', password=f'controller-secret-{i}') for i in (1, 2)]
+    nodes = [SimpleNamespace(hostname=f'node0{i}', bootstrap_ip=f'198.51.100.{i}') for i in (1, 2)]
+    def connect(node, credentials):
+        assert credentials.password == 'ssh-secret'
+        stream = StringIO()
+        stream.channel = SimpleNamespace(shutdown_write=lambda: None)
+        def execute(command, timeout):
+            assert 'controller-secret' not in command and 'ssh-secret' not in command
+            assert 'python3 -c ' in command and 'action' in command
+            assert 0 < timeout <= 25
+            calls.append((node.hostname, stream))
+            return stream, SimpleNamespace(channel=node.hostname), None
+        return SimpleNamespace(exec_command=execute, close=lambda: closed.append(node.hostname)), 'SHA256:example'
+    monkeypatch.setattr(ssh_bootstrap, '_connect', connect)
+    monkeypatch.setattr(ssh_bootstrap, '_collect_channel', lambda channel, timeout: (0, 'Status: ON\ncontroller-secret-1 controller-secret-2 ssh-secret'))
+    results = verify_ipmi_profiles_on_nodes(nodes, SSHCredentials(password='ssh-secret'), profiles)
+    assert len(results) == 2 and all(r.ok for r in results)
+    assert sorted(closed) == ['node01', 'node02']
+    for name, stream in calls:
+        payload = json.loads(stream.getvalue())
+        assert payload['hostname'] == name
+        assert payload['controller_endpoint'] == ('192.0.2.1' if name == 'node01' else '192.0.2.2')
+        assert payload['password'] == ('controller-secret-1' if name == 'node01' else 'controller-secret-2')
+    assert all('secret' not in r.output and 'via SSH' in r.output for r in results)
+    assert all(not r.ok and 'SSH key' in r.output for r in verify_ipmi_profiles_on_nodes(nodes, None, profiles))
+
+
+def test_ipmi_web_verification_dispatches_saved_credentials_to_nodes(client, app, stonith_project, monkeypatch):
+    project = stonith_project
+    data = profile_data(project)
+    data.update(mode='ipmi', endpoint='')
+    for index in range(2):
+        data[f'profiles-{index}-controller_endpoint'] = f'192.0.2.{index+1}'
+        data[f'profiles-{index}-resource_name'] = f'fence-node0{index+1}'
+    path = f'/projects/{project.id}/stonith/profiles'
+    assert client.post(path, data=data).status_code == 302
+    observed = []
+    monkeypatch.setattr('clusterweaver.web.routes.stonith.project_credentials', lambda project: 'ssh-credential')
+    def verify(nodes, credentials, profiles):
+        assert credentials == 'ssh-credential'
+        assert [n.hostname for n in nodes] == ['node01', 'node02']
+        observed.extend(profiles)
+        return [SimpleNamespace(hostname=p['hostname'], endpoint=p['controller_endpoint'], ok=True, output='Status: ON via SSH', fingerprint='') for p in profiles]
+    monkeypatch.setattr('clusterweaver.web.routes.stonith.verify_ipmi_profiles_on_nodes', verify)
+    data.pop('save')
+    data['verify'] = 'y'
+    for index in range(2):
+        data[f'profiles-{index}-password'] = ''
+    response = client.post(path, data=data)
+    assert response.status_code == 200 and b'Status: ON via SSH' in response.data
+    assert len(observed) == 2 and all(p['password'] == 'not-a-real-secret' for p in observed)
+    assert b'not-a-real-secret' not in response.data

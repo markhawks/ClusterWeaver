@@ -370,3 +370,50 @@ document.addEventListener('DOMContentLoaded', () => {
   if (jobs.some(job => ['queued', 'running'].includes(job.status))) poll();
   setInterval(() => { if (jobs.some(job => ['queued', 'running'].includes(job.status))) render(); }, 1000);
 });
+
+
+// Stored controller passwords are fetched only after an explicit authorized request.
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest(".stonith-password-toggle");
+  if (!button) return;
+  const input = document.getElementById(button.dataset.target);
+  const status = button.closest(".mb-3").querySelector(".password-status");
+  if (input.type === "text") {
+    input.type = "password";
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute("aria-label", "Show password");
+    button.title = "Show password";
+    if (input.dataset.revealed === "true") {
+      input.value = "";
+      delete input.dataset.revealed;
+    }
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "";
+  try {
+    if (!input.value && button.dataset.saved === "true") {
+      const token = button.closest("form").querySelector('[name="csrf_token"]');
+      const body = new URLSearchParams({csrf_token: token?.value || ""});
+      const response = await fetch(button.dataset.url, {method: "POST", body, cache: "no-store", credentials: "same-origin"});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to reveal password.");
+      input.value = data.password;
+      input.dataset.revealed = "true";
+    }
+    input.type = "text";
+    button.setAttribute("aria-pressed", "true");
+    button.setAttribute("aria-label", "Hide password");
+    button.title = "Hide password";
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+document.addEventListener("input", (event) => {
+  if (event.target.matches('#stonith-profiles-form input[data-revealed]')) delete event.target.dataset.revealed;
+});
+window.addEventListener("pagehide", () => {
+  document.querySelectorAll('#stonith-profiles-form input[type="text"][autocomplete="new-password"]').forEach(input => { input.value = ""; input.type = "password"; });
+});

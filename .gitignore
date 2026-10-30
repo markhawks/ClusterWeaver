@@ -16,3 +16,5 @@ instance/
 dist/
 
 data/ssh_keys/
+
+data/stonith_secrets/

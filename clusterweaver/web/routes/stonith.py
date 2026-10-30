@@ -1,11 +1,12 @@
-from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for, jsonify
 from sqlalchemy import delete
 
-from clusterweaver.core.services.stonith import generate_oem_verification_script, verify_oem_profiles, generate_ipmi_verification_script, verify_ipmi_profiles
+from clusterweaver.core.services.stonith import generate_oem_verification_script, verify_oem_profiles, generate_ipmi_verification_script, verify_ipmi_profiles_on_nodes
 from clusterweaver.core.services.dell_ipmi import validate_ipmi_definition
 from clusterweaver.core.services.fence_agents import check_cluster_agents, generate_agent_check_script, INSTALL_ALL_COMMAND
 from clusterweaver.persistence import db
 from clusterweaver.persistence.models import StonithConfigurationRecord, StonithProfileRecord, StepExecutionRecord, utcnow
+from clusterweaver.web.stonith_secrets import encrypt_password, decrypt_password
 from clusterweaver.web.ssh_credentials import project_credentials
 from clusterweaver.web.forms.stonith import StonithProfilesForm, FenceAgentsCheckForm
 from clusterweaver.web.routes.projects import persist_files, project_or_404, repository
@@ -45,6 +46,8 @@ def profiles(project_id):
         if not valid:
             flash("Provide exactly one DELL profile for every current project node. Reload the form if the inventory changed.", "danger")
         ipmi = form.mode.data == "ipmi"
+        saved_profiles = {profile.node_id: profile for profile in configuration.profiles} if configuration else {}
+        passwords = {}
         seen_profiles = set()
         controllers = set()
         for entry in form.profiles:
@@ -78,7 +81,27 @@ def profiles(project_id):
             if ipmi and any(c in (entry.form.password.data or "") + username for c in "\r\n\x00"):
                 entry.form.password.errors.append("Credentials cannot contain newlines or NUL characters.")
                 valid = False
-            if form.verify.data and not entry.form.password.data:
+            saved_profile = saved_profiles.get(node.id)
+            same_identity = bool(configuration and saved_profile and configuration.mode == form.mode.data
+                and configuration.endpoint == ("" if ipmi else (form.endpoint.data or "").strip())
+                and saved_profile.username == username
+                and (saved_profile.controller_endpoint == (entry.form.controller_endpoint.data or "").strip() if ipmi else saved_profile.profile_name == name))
+            password = entry.form.password.data or ""
+            if not password and same_identity and saved_profile.password_encrypted and form.verify.data:
+                try:
+                    password = decrypt_password(saved_profile.password_encrypted)
+                except ValueError as exc:
+                    entry.form.password.errors.append(str(exc))
+                    valid = False
+            encrypted = None
+            if entry.form.password.data:
+                try:
+                    encrypted = encrypt_password(password)
+                except ValueError as exc:
+                    entry.form.password.errors.append(str(exc))
+                    valid = False
+            passwords[node.id] = (password, encrypted, same_identity)
+            if form.verify.data and not password:
                 entry.form.password.errors.append("Enter the iDRAC password to verify this node." if ipmi else "Enter the OEM password to verify this profile.")
                 valid = False
         if valid:
@@ -104,6 +127,12 @@ def profiles(project_id):
                     changed = True
                 changed = changed or profile.profile_name != name or profile.username != username
                 changed = changed or profile.controller_endpoint != controller or profile.resource_name != resource
+                password, encrypted, same_identity = passwords[node_id]
+                if encrypted is not None:
+                    profile.password_encrypted = encrypted
+                    changed = True
+                elif not same_identity:
+                    profile.password_encrypted = ""
                 profile.controller_endpoint, profile.resource_name = controller, resource
                 profile.profile_name, profile.username = name, username
             if changed:
@@ -114,24 +143,27 @@ def profiles(project_id):
             if form.verify.data:
                 inputs = [dict(hostname=entry.form.hostname.data, profile_name=(entry.form.profile_name.data or "").strip(),
                                controller_endpoint=(entry.form.controller_endpoint.data or "").strip(), resource_name=(entry.form.resource_name.data or "").strip(),
-                               username=entry.form.username.data.strip(), password=entry.form.password.data)
+                               username=entry.form.username.data.strip(), password=passwords[int(entry.form.node_id.data)][0])
                           for entry in form.profiles]
-                results = verify_ipmi_profiles(inputs) if ipmi else verify_oem_profiles(configuration.endpoint, inputs, current_app.config.get("OEM_CA_FILE") or None)
+                results = verify_ipmi_profiles_on_nodes(project.nodes, project_credentials(project), inputs) if ipmi else verify_oem_profiles(configuration.endpoint, inputs, current_app.config.get("OEM_CA_FILE") or None)
                 repository().save_step_results(project_id, "08a", results)
                 db.session.commit()
                 return render_template("projects/ssh_results.html", project=project_or_404(project_id), results=results,
                     title="08a · DELL iDRAC IPMI verification" if ipmi else "08a · DELL OEM profile verification", changed=False,
-                    operation_description="Read-only IPMI status from the ClusterWeaver server; no power action or resource creation." if ipmi else "Read-only HTTPS checks from the ClusterWeaver server. No fencing resource was created and no power action was performed.")
-            flash("DELL iDRAC profiles saved. Passwords were not stored." if ipmi else "DELL OEM profiles saved. Passwords were not stored.", "success")
+                    operation_description="Read-only IPMI status executed via SSH on each cluster node against its associated iDRAC; no power action or resource creation." if ipmi else "Read-only HTTPS checks from the ClusterWeaver server. No fencing resource was created and no power action was performed.")
+            flash("DELL iDRAC profiles saved. Passwords are stored encrypted; a blank field keeps the saved password for unchanged credentials." if ipmi else "DELL OEM profiles saved. Passwords are stored encrypted; a blank field keeps the saved password for unchanged credentials.", "success")
             return redirect(url_for("projects.detail", project_id=project_id))
     saved_definitions = definitions(configuration)
-    return render_template("projects/stonith_profiles.html", project=project, form=form,
+    response = current_app.make_response(render_template("projects/stonith_profiles.html", project=project, form=form,
+        saved_passwords={str(profile.node_id): bool(profile.password_encrypted) for profile in configuration.profiles} if configuration else {},
         verification_script=(generate_ipmi_verification_script(saved_definitions) if configuration.mode == "ipmi" else generate_oem_verification_script(configuration.endpoint, saved_definitions)) if configuration else "",
         results=repository().step_results(project_id).get("08a", []),
         agents_form=FenceAgentsCheckForm(prefix="agents"),
         agent_results=repository().step_results(project_id).get("08a-fa", []),
         agent_script=generate_agent_check_script(configuration.mode) if configuration else "",
-        install_all_command=INSTALL_ALL_COMMAND)
+        install_all_command=INSTALL_ALL_COMMAND))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @stonith_bp.post("/projects/<int:project_id>/stonith/check-agents")
@@ -157,3 +189,24 @@ def check_agents(project_id):
     return render_template("projects/ssh_results.html", project=project_or_404(project_id), results=results,
         title="08a · Cluster-node fence-agent verification", changed=False,
         operation_description="Read-only SSH checks on each cluster node: installed packages and fence_* executables; IPMI mode also reads fence_ipmilan metadata. Missing agents produce an installation command; no package is installed automatically.")
+
+
+@stonith_bp.post("/projects/<int:project_id>/stonith/profiles/<int:node_id>/password")
+def reveal_password(project_id, node_id):
+    if g.current_user.role not in {"administrator", "clusteradmin"}:
+        abort(403)
+    # FlaskForm validates the standard session CSRF token even for JSON requests.
+    from flask_wtf import FlaskForm
+    if not FlaskForm().validate_on_submit():
+        return jsonify(error="Invalid CSRF token."), 400
+    configuration = repository().get_record(project_or_404(project_id).id).stonith_configuration
+    profile = next((profile for profile in configuration.profiles if profile.node_id == node_id), None) if configuration else None
+    if profile is None:
+        abort(404)
+    try:
+        response = jsonify(password=decrypt_password(profile.password_encrypted))
+    except ValueError as exc:
+        response = jsonify(error=str(exc))
+        response.status_code = 409
+    response.headers['Cache-Control'] = 'no-store'
+    return response

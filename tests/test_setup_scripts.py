@@ -63,3 +63,21 @@ def test_full_offline_bundle_installs_incremental_updater():
 
     assert "update-code.sh" in builder
     assert "clusterweaver-update" in installer
+
+
+
+def test_staged_venv_launchers_work_after_move(tmp_path):
+    import subprocess
+    import sys
+    source, destination = tmp_path / 'staged', tmp_path / 'live'
+    subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(source)], check=True)
+    launcher = source / 'bin' / 'example'
+    launcher.write_text(f'#!{source}/bin/python\nimport sys; print(sys.prefix)\n')
+    launcher.chmod(0o755)
+    subprocess.run([sys.executable, str(ROOT / 'setup' / 'relocate-venv.py'), str(source), str(destination)], check=True)
+    source.rename(destination)
+    # Explicit interpreter execution also works on noexec temporary filesystems.
+    shebang = (destination / 'bin' / 'example').read_text().splitlines()[0][2:]
+    result = subprocess.run([shebang, str(destination / 'bin' / 'example')], check=True, capture_output=True, text=True)
+    assert result.stdout.strip() == str(destination)
+    assert str(source) not in (destination / 'bin' / 'activate').read_text()

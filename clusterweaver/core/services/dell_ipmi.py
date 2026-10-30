@@ -1,4 +1,6 @@
 """Read-only IPMI status via fence_ipmilan; credentials travel on stdin."""
+import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -26,7 +28,9 @@ def inspect_ipmi(profile, deadline):
             raise ValueError("Userid and password are required and cannot contain newlines or NUL characters.")
     agent = shutil.which('fence_ipmilan')
     if not agent:
-        raise ValueError("fence_ipmilan is missing on the ClusterWeaver server. Install the RHEL fence-agents-ipmilan package before verification.")
+        agent = next((str(path) for path in (Path('/usr/sbin/fence_ipmilan'), Path('/sbin/fence_ipmilan'), Path('/usr/bin/fence_ipmilan')) if path.is_file() and os.access(path, os.X_OK)), None)
+    if not agent:
+        raise ValueError("fence_ipmilan is missing on the execution host (cluster node). Checked PATH and standard sbin/bin locations. The executable must be installed and executable by the SSH execution account on that cluster node; check permissions or install fence-agents-ipmilan.")
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise ValueError("The 45-second verification budget expired.")
@@ -36,7 +40,7 @@ def inspect_ipmi(profile, deadline):
     except subprocess.TimeoutExpired as exc:
         raise ValueError("IPMI status timed out (20 seconds per node, 45 seconds total). Check iDRAC connectivity and credentials.") from exc
     except OSError as exc:
-        raise ValueError("Unable to execute fence_ipmilan on the ClusterWeaver server.") from exc
+        raise ValueError("Unable to execute fence_ipmilan on the execution host (cluster node). Check service-account execute permissions, the script interpreter and agent dependencies.") from exc
     output = (result.stdout + '\n' + result.stderr).strip()
     if result.returncode != 0:
         raise ValueError(f"fence_ipmilan status failed (exit {result.returncode}): {output}")
