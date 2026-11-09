@@ -88,7 +88,7 @@ def start(project_id):
     release_stale_jobs(project_id)
     # After an uncertain mutation a fresh read-only status job is required.
     uncertain = db.session.scalar(select(ClusterOperationRecord).where(
-        ClusterOperationRecord.project_id == project_id, ClusterOperationRecord.action != 'status',
+        ClusterOperationRecord.project_id == project_id, ClusterOperationRecord.action.notin_(['status','fencing_verify']),
         ClusterOperationRecord.status == 'unknown').order_by(ClusterOperationRecord.created_at.desc()).limit(1))
     if action != 'status' and uncertain is not None:
         refreshed = db.session.scalar(select(ClusterOperationRecord.id).where(
@@ -136,7 +136,7 @@ def protect_running_operation():
         return None
     protected = {'projects.edit_project', 'projects.delete_project', 'projects.create_node', 'projects.clone_node', 'projects.edit_node',
         'projects.run_hosts_update', 'projects.run_package_install', 'projects.run_pcsd_auth', 'projects.run_cluster_setup',
-        'projects.ssh_key_bootstrap', 'projects.network_apply', 'ssh_access.manage'}
+        'projects.ssh_key_bootstrap', 'projects.network_apply', 'projects.network_skip', 'ssh_access.manage', 'stonith.profiles'}
     if request.endpoint not in protected:
         return None
     active = db.session.scalar(select(ClusterOperationRecord.id).where(ClusterOperationRecord.active_project_id == project_id).limit(1))

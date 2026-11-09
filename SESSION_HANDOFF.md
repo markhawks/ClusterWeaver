@@ -1,6 +1,37 @@
 # ClusterWeaver session handoff
 
-Updated: 2026-10-30 (Europe/Rome)
+Updated: 2026-11-09 (Europe/Rome)
+
+## Session closure: 0.1.14 (2026-11-09)
+
+- Checkout: `/root/ClusterWeaver-main`, branch `main`; version/tag: `0.1.14` / `v0.1.14`.
+- Release notes: `CHANGELOG.md`, dated `2026-11-09`. Final publication/deployment details are recorded below once complete.
+- Offline installation remains deprecated. Do not build or attach offline installation bundles; no binary release assets are planned.
+- Alembic head remains `0018_stonith_passwords`: no new migration is required by 0.1.14. Preserve the database, project SSH key directories and controller encryption-key directory in protected backups.
+- Added explicit network Skip (00c), recorded as skipped per node, preserving existing successful results and unlocking 01 after discovery/trust. No network commands run when skipping.
+- Node gateway validation now reports problems while editing and blocks invalid saves, clones and portable imports. It detects self/peer node addresses, existing router-IP collisions, out-of-subnet, network/broadcast and non-unicast values. /31 links remain supported. These checks do not establish actual router reachability or correctness of an otherwise valid address.
+- Step 08a visibly offers OEM profiles or individual iDRAC/IPMI. New configurations default to direct IPMI; existing saved modes are preserved. Manual checks display one copyable command per node with controller/user prefilled and a password placeholder, plus the separate full verification script. Agent summaries include per-node Europe/Rome timestamps.
+- New profile resource names default to STONITH- plus the last two trailing hostname digits, e.g. STONITH-90 / STONITH-91. Names already saved by the user are preserved. Target mappings use the saved Pacemaker nodename, not the bare hostname.
+- Step 08b creates direct-IPMI devices from one coordinator after passing 00k, 08a and 08a-fa checks. Live preflight verifies cluster identity/quorum, healthy membership, agents and surviving-peer access to each controller. Commands use lanplus=1 and power_wait=4 by default, with no explicit method or monitor. Monitor/failure-timeout overrides and disabled creation are optional. Enabled devices become available to Pacemaker immediately.
+- 08b stages all missing resources in protected CIB files, injects passwords into XML rather than argv, and applies one diff. Matching existing resources are reused; conflicting resources are never overwritten. Creation is a background job with shared per-project reservations/history. Unknown mutation results require a successful status refresh and are never automatically replayed.
+- Step 08c checks live CIB bindings/credentials, enabled/managed/runtime state, actual monitor operations/timeouts, failure counts, global fencing/maintenance state, quorum and peer controller access. It is read-only: no configuration changes, activation, cleanup or power actions. Missing periodic monitors are warnings; failed/disabled/blocked resources and non-zero failure counts fail verification. Conditional policies require manual review.
+- The STONITH phase matches the other macro groups, with Steps 08a–08c, a 3-step completion counter and consistent step cards/icons. Cluster Base displays Steps 05–07 and has proper separation from STONITH. UI controls are English.
+
+## Validation and operational state
+
+- Final 0.1.14 validation: 153 tests passed, plus JavaScript and shell syntax checks and Git whitespace checks. Existing WTForms tuple-choice deprecation warnings remain; no test failures. JavaScript verification-page submission was also checked during development.
+- Changes have been deployed locally during the session. Latest feature deployment backup before release: `/var/lib/clusterweaver/backups/clusterweaver-20261109T165518Z-3781135.db`.
+- 08b/08c implementation tests use simulated pcs/CIB/SSH. The user reported that fencing resources were created through the GUI. The assistant did not execute live creation, power-off or reboot tests during this session.
+- No production machine names, controller endpoints, passwords, private keys or runtime database files belong in the application Git release. Project inventories are separately versioned in the local project repository.
+
+## Resume next session
+
+- Run 08c from the GUI on the selected cluster and review resource bindings, runtime/monitor state, failure counts and peer controller access. Investigate timeout causes; do not automatically clear failure history.
+- Step 08d (real fencing/power tests) is NOT implemented. Design it separately with explicit node selection/confirmation, one node at a time, quorum/workload checks and verification of full rejoin before the next test.
+- Creating devices for OEM/Cisco/ILOM/VMware is NOT implemented; 08b/08c currently support direct iDRAC/IPMI only. OEM remains available for 08a definitions/verification.
+- The SSH-key migration remains unresolved. Step 00b creates distinct Ed25519 keys commented clusterweaver-bootstrap on individual nodes for peer trust. The server root RSA identity is different. The service currently uses working per-project keys. Do not remove these or copy node private keys without resolving the user's intended identity and verifying replacement access on every node. Existing keys were preserved.
+
+The following sections preserve the historical release/session records.
 
 ## Session closure: 0.1.13 (2026-10-30)
 

@@ -2,8 +2,10 @@ from datetime import datetime, timezone
 from io import BytesIO
 import secrets
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, send_file, url_for
 from sqlalchemy.exc import IntegrityError
+from flask_wtf import FlaskForm
+from clusterweaver.persistence.models import StepExecutionRecord, utcnow
 
 from clusterweaver.core.generators import generate_cluster_setup, generate_hosts_update, generate_network_check, generate_network_connectivity, generate_network_configuration_plan, generate_package_install, generate_pcsd_auth, generate_peer_trust, generate_precheck, generate_ssh_discovery
 from clusterweaver.core.services.projects import ProjectFileService
@@ -52,7 +54,7 @@ def set_group_choices(form: ProjectForm) -> None:
 def workflow_step_complete(project, results: dict, step: str) -> bool:
     expected = {node.id for node in project.nodes}
     records = results.get(step, [])
-    return bool(expected) and {record.node_id for record in records if record.status == "pass"} == expected
+    return bool(expected) and {record.node_id for record in records if (record.status == "pass" or (step == "00c" and record.status == "skipped"))} == expected
 
 
 def workflow_step_failed(project, results: dict, step: str) -> bool:
@@ -381,9 +383,11 @@ def detail(project_id: int):
     cluster_base_complete = sum(workflow_step_complete(project, workflow_results, step) for step in ("05", "06", "07"))
     from clusterweaver.web.routes.cluster_operations import operation_context
     operations = operation_context(project, workflow_results)
+    from clusterweaver.web.routes.fencing_create import context as fencing_context
+    operations.update(fencing_context(project, workflow_results))
     network_form = NetworkApplyForm()
     network_form.node_id.choices = [(node.id, f"{node.hostname} · {node.bootstrap_ip or 'no bootstrap IP'}") for node in project.nodes]
-    return render_template("projects/detail.html", project=project, discovery_script=generate_ssh_discovery(), peer_trust_script=generate_peer_trust(project), network_configuration_script=generate_network_configuration_plan(project), script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), package_script=generate_package_install(project), pcsd_auth_script=generate_pcsd_auth(project), cluster_setup_script=generate_cluster_setup(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, precluster_complete=precluster_complete, cluster_base_complete=cluster_base_complete, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), package_install_form=PackageInstallRunForm(prefix="package-install"), pcsd_auth_form=PcsdAuthRunForm(prefix="pcsd-auth"), cluster_setup_form=ClusterSetupRunForm(prefix="cluster-setup"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]), ssh_key_available=project_key_store(project).available(), **operations)
+    return render_template("projects/detail.html", project=project, discovery_script=generate_ssh_discovery(), peer_trust_script=generate_peer_trust(project), network_configuration_script=generate_network_configuration_plan(project), script=generate_precheck(project), network_script=generate_network_check(project), hosts_script=generate_hosts_update(project), connectivity_script=generate_network_connectivity(project), package_script=generate_package_install(project), pcsd_auth_script=generate_pcsd_auth(project), cluster_setup_script=generate_cluster_setup(project), workflow_results=workflow_results, workflow_ready=workflow_ready, workflow_failed=workflow_failed, bootstrap_ready=bootstrap_ready, bootstrap_failed=bootstrap_failed, precluster_complete=precluster_complete, cluster_base_complete=cluster_base_complete, discovery_form=SSHDiscoveryForm(), key_form=SSHKeyBootstrapForm(), network_form=network_form, network_skip_form=FlaskForm(), precheck_form=PrecheckRunForm(), network_check_form=NetworkCheckRunForm(prefix="network-check"), hosts_update_form=HostsUpdateRunForm(prefix="hosts-update"), connectivity_form=ConnectivityRunForm(prefix="connectivity"), package_install_form=PackageInstallRunForm(prefix="package-install"), pcsd_auth_form=PcsdAuthRunForm(prefix="pcsd-auth"), cluster_setup_form=ClusterSetupRunForm(prefix="cluster-setup"), ssh_password_configured=bool(current_app.config["SSH_BOOTSTRAP_PASSWORD"]), ssh_key_available=project_key_store(project).available(), **operations)
 
 
 @projects_bp.post("/projects/<int:project_id>/run-prechecks")
@@ -399,7 +403,7 @@ def run_prechecks(project_id: int):
         return redirect(url_for("projects.detail", project_id=project_id))
     workflow_results = repository().step_results(project_id)
     if not all(workflow_step_complete(project, workflow_results, step) for step in ("00a", "00b", "00c")):
-        flash("All three step 00 operations must pass on every node before running step 01.", "danger")
+        flash("Complete SSH discovery and peer SSH trust, then run or skip network configuration on every node before running step 01.", "danger")
         return redirect(url_for("projects.detail", project_id=project_id))
     script = generate_precheck(project)
     results = [run_remote_script(node, password, script) for node in project.nodes]
@@ -578,6 +582,34 @@ def ssh_key_bootstrap(project_id: int):
     return render_template("projects/ssh_results.html", project=project, results=results, title="SSH key bootstrap", changed=True)
 
 
+@projects_bp.post("/projects/<int:project_id>/network-skip")
+def network_skip(project_id: int):
+    project = project_or_404(project_id)
+    if g.current_user.role not in {"administrator", "clusteradmin"}:
+        abort(403)
+    if not FlaskForm().validate_on_submit():
+        abort(400, description="Invalid CSRF token.")
+    results = repository().step_results(project_id)
+    if not project.nodes or not all(workflow_step_complete(project, results, step) for step in ("00a", "00b")):
+        flash("Complete SSH discovery and peer SSH trust on every node before skipping network configuration.", "danger")
+        return redirect(url_for("projects.detail", project_id=project_id))
+    existing = {record.node_id: record for record in results.get("00c", [])}
+    for node in project.nodes:
+        record = existing.get(node.id)
+        # Preserve any successful network checks already performed.
+        if record is not None and record.status == "pass":
+            continue
+        if record is None:
+            record = StepExecutionRecord(project_id=project_id, node_id=node.id, step="00c")
+            db.session.add(record)
+        record.status = "skipped"
+        record.output = f"Network configuration skipped by {g.current_user.username}. No network commands were executed or configuration verified. Proceeding to step 01 was explicitly requested."
+        record.executed_at = utcnow()
+    db.session.commit()
+    flash("Network configuration skipped. You can now run step 01. No changes were made on the nodes.", "info")
+    return redirect(url_for("projects.detail", project_id=project_id))
+
+
 @projects_bp.post("/projects/<int:project_id>/network-apply")
 def network_apply(project_id: int):
     record = repository().get_record(project_id)
@@ -711,14 +743,18 @@ def edit_node(project_id: int, node_id: int):
     form = NodeForm(obj=node)
     if form.validate_on_submit():
         if add_conflict_errors(form, project_id, node.id):
-            return render_template("nodes/form.html", form=form, project=record, title="Edit node", interface_names=repository().interface_names())
+            return render_template("nodes/form.html", form=form, project=record, title="Edit node", editing_node_id=node.id, interface_names=repository().interface_names())
         if node.hostname != form.hostname.data.strip():
             for execution in list(node.step_executions):
-                if execution.step in {"08a", "08a-fa", "00k", "00kr"}:
+                if execution.step in {"08a", "08a-fa", "08b", "08c", "00k", "00kr"}:
                     db.session.delete(execution)
         if node.bootstrap_ip != (form.bootstrap_ip.data or "").strip() or node.ssh_port != form.ssh_port.data:
             for execution in list(node.step_executions):
-                if execution.step in {"08a-fa", "00k", "00kr"}:
+                if execution.step in {"08a-fa", "08b", "08c", "00k", "00kr"}:
+                    db.session.delete(execution)
+        if node.nodename != form.nodename.data.strip():
+            for execution in list(node.step_executions):
+                if execution.step in {'08b','08c'}:
                     db.session.delete(execution)
         node.hostname = form.hostname.data.strip()
         node.nodename = form.nodename.data.strip()
@@ -742,7 +778,7 @@ def edit_node(project_id: int, node_id: int):
             persist_files(record.id, f"Update node {node.hostname} in {record.name}")
             flash("Node updated.", "success")
             return redirect(url_for("projects.detail", project_id=record.id))
-    return render_template("nodes/form.html", form=form, project=record, title="Edit node", interface_names=repository().interface_names())
+    return render_template("nodes/form.html", form=form, project=record, title="Edit node", editing_node_id=node.id, interface_names=repository().interface_names())
 
 
 @projects_bp.get("/projects/<int:project_id>/precheck.sh")

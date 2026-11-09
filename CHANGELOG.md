@@ -6,6 +6,24 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-11-09
+
+### Added
+
+- Cluster Base now displays Steps 05–07, with consistent spacing separating it from the STONITH macro group.
+- Added step 08c, Verify Fencing Configuration, with read-only checks of saved resource bindings, enabled/managed/runtime state, monitor settings, failure counts, quorum and peer controller access. Verification does not power-cycle nodes, change configuration or clear failures. The STONITH workflow now matches the other phase headers/cards with a Steps 08a–08c description and 3-step completion counter.
+- Added step 08b, Create Fencing Devices, for direct iDRAC/IPMI: prerequisite checks, saved resource names, command previews, explicit confirmation, optional monitor/failure-timeout settings, background job history and shared cluster-operation reservations. Creation checks live quorum/identity and peer-controller access, stages all missing devices in a protected CIB, applies one diff, verifies definitions and refuses conflicting existing resources without overwriting them. Uncertain outcomes are never automatically retried.
+- New 08a resource names default to STONITH- plus the last two hostname digits, while saved user-defined names are preserved. OEM remains available in 08a; creating OEM/Cisco/VMware fencing devices is not yet implemented.
+- Step 08a now offers per-node copyable single-line IPMI status commands beside the verification script controls, with saved controller/user fields prefilled and a password placeholder; the full script remains available separately.
+- Step 08a now exposes an explicit OEM profiles / single iDRAC choice immediately above the node table. New configurations default to per-node iDRAC/IPMI; existing saved modes are preserved.
+- Node configuration now gives immediate gateway feedback and rejects self/peer node addresses, network/broadcast and non-unicast gateways before saving. Equivalent checks apply to project import; existing gateway addresses cannot be assigned to new nodes. Valid /31 peer gateways remain supported.
+- Network configuration (step 00c) now has a Skip action beside Run. Authorized operators can explicitly skip it after discovery and peer SSH trust, unlocking step 01 without remote network changes. Skipped nodes are recorded distinctly from successful verification.
+
+### Fixed
+
+- The step 08a latest node-agent summary now displays each node's check date and time in Europe/Rome timezone.
+- Manual-command controls and remaining cluster-operation labels are now in English; manual IPMI checks are shown as single commands rather than shell wrappers.
+
 ## [0.1.13] - 2026-10-30
 
 ### Changed

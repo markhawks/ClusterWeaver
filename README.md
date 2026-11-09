@@ -10,15 +10,26 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.13** (2026-10-30). Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.14** (2026-11-09). Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
-This first MVP manages RHEL 7, 9, and 10 cluster projects and nodes. It stores searchable state in SQLite, writes a human-readable YAML definition, versions project files in a local Git repository, and generates a reviewable pre-check script. RHEL 8 is deliberately unsupported.
+This first MVP manages RHEL 7, 9, and 10 cluster projects and nodes. It stores searchable state in SQLite, writes a human-readable YAML definition, versions project files in a local Git repository, and generates reviewable workflow scripts. RHEL 8 is deliberately unsupported.
 
 Projects can be assigned to color-coded Project Groups with unique names and optional descriptions. Home presents collapsed group and ungrouped sections with project counters, while Project retains the complete searchable and sortable inventory, including Group as a column and filter.
 
-The generated remote workflow is divided into two collapsible phases. **Pre-Cluster Configuration** (steps 00–04) performs SSH bootstrap and discovery, network configuration and verification, `/etc/hosts` management, and preliminary checks. Step 00 exposes review, copy, and full-screen views for all three operations; its RHEL 7.9 network action is strictly read-only and reports NetworkManager or legacy network-scripts ownership, while RHEL 9.8 and 10.2 retain guarded configuration support. **Cluster Base Installation and Configuration** installs and verifies the Pacemaker packages (step 05), enables `pcsd` and authenticates the nodes (step 06), then creates the named cluster and verifies membership, `WaitForAll`, and quorum (step 07). Each action is gated by the successful completion of the preceding steps and records its result per node.
+The generated remote workflow is divided into three collapsible phases. **Pre-Cluster Configuration** (steps 00–04) performs SSH bootstrap and discovery, network configuration and verification, `/etc/hosts` management, and preliminary checks. Step 00 exposes review, copy, and full-screen views for all three operations; its RHEL 7.9 network action is strictly read-only and reports NetworkManager or legacy network-scripts ownership, while RHEL 9.8 and 10.2 retain guarded configuration support. **Cluster Base Installation and Configuration** installs and verifies the Pacemaker packages (step 05), enables `pcsd` and authenticates the nodes (step 06), then creates the named cluster and verifies membership, `WaitForAll`, and quorum (step 07). Each action enforces its prerequisites and records results per node; explicitly skipping network configuration is recorded separately from successful verification.
+
+**Cluster STONITH Configuration and Testing** (steps 08a–08c) defines OEM profiles or individual iDRAC controllers, creates direct-IPMI fencing devices after successful checks, and verifies their configuration in read-only mode. Every phase shows its included steps and completion counters. Actual power testing is not implemented in this release.
+
+## Version 0.1.14 highlights
+
+- Skip network configuration (00c) explicitly after SSH discovery/trust, without remote network changes.
+- Validate gateways during editing and before saving/importing, including node-IP collisions and invalid subnet addresses.
+- Choose OEM profiles or one iDRAC per node. New resource names suggest the hostname's last two digits; saved custom names are preserved.
+- Use copyable single-line manual IPMI commands, English controls and per-node agent-check timestamps.
+- Create fencing devices in background step 08b with previews, confirmation, peer-access checks and conflict protection; inspect them in read-only step 08c.
+- Offline installation remains deprecated; no offline installation bundle is published.
 
 ## Development prerequisites
 
@@ -254,3 +265,19 @@ Read-only snapshots use Corosync configuration, systemd, crm_mon XML and full pc
 Jobs run in web-worker background threads; HTTP returns immediately and the browser polls persisted progress every two seconds. A database-unique project reservation prevents duplicate jobs across workers. Inventory/key edits and conflicting legacy mutations are blocked while a job is running. Mutation command limit: 120 seconds; start/stop state verification: 180 seconds; other verification: 60 seconds; total budget: 360 seconds, with commands reduced to remaining time. Command timeout or lost transport produces UNKNOWN and a new read-only snapshot, never an automatic mutation retry. A successful status refresh is required before further mutations. Worker restart interrupts a job: after 600 seconds its reservation is released as UNKNOWN, without replay. History is excluded from portable projects. Apply migration `0017_cluster_operations` with `alembic upgrade head` before starting this version.
 
 Controller password storage requires `alembic upgrade head` (migration `0018_stonith_passwords`). The service creates a private encryption key in `PROJECTS_ROOT.parent/stonith_secrets/key`; override the directory with `CLUSTERWEAVER_STONITH_SECRETS_ROOT`, outside the project Git directory. Back up this directory securely together with SQLite: restoring the database alone cannot recover passwords. Administrators and clusteradmins can explicitly reveal a password using the eye button; blank fields preserve stored credentials when the controller, mode and userid are unchanged. On each cluster node, the iDRAC check searches `/usr/sbin` and other standard locations even with a restricted PATH. The displayed manual Python script must be run on a cluster node; it checks the saved profiles from that execution host.
+
+Gateway fields provide immediate configuration feedback. Saving or importing rejects gateways outside the corresponding subnet, gateways matching node addresses, and network/broadcast or non-unicast addresses. Existing router addresses cannot be assigned to another node in the same project. These checks do not establish router reachability or prove that an otherwise valid address matches the live default route.
+
+## Step 08b: Create Fencing Devices
+
+For direct iDRAC/IPMI configurations, step 08b uses the resource names saved in 08a. New profiles suggest `STONITH-90` for a hostname ending in `90`; existing/custom names are preserved. Every current node needs passing 00k, 08a and 08a-fa checks and an active project SSH key. Live preflight additionally checks the expected cluster, all nodes online/clean, quorum, installed agents and controller status from at least one surviving peer per target.
+
+The page previews `pcs stonith create` commands with password placeholders. Defaults are `lanplus=1` and `power_wait=4`, with no explicit method or monitor operation. Monitor interval/timeout and failure-timeout overrides are optional. “Create new devices disabled” defers activation for new resources. Creating enabled devices makes them immediately available to Pacemaker; no power test is requested by this step.
+
+Creation runs in the background with one project reservation, from one coordinator. Missing resources are prepared offline with `pcs -f`; passwords are injected into protected temporary XML instead of command arguments. A single `pcs cluster cib-push ... diff-against=...` applies the changes. Coherent existing resources are verified without modification; conflicts stop creation. Results show actual configured operations. Transport loss produces an uncertain outcome, with no automatic replay; successfully refresh cluster status before another modifying action. Changing definitions invalidates saved 08b results. Step 08b currently does not create OEM, Cisco, ILOM or VMware devices.
+
+## Step 08c: Verify Fencing Configuration
+
+After 08b passes on every node, 08c inspects the saved direct-IPMI resources in the current CIB and runtime status. It verifies agent/controller/user/credentials/nodename bindings, enabled and managed state, actual monitor operations and timeouts, failure-timeout, recorded failure counts, quorum and peer controller status access. Disabled/stopped/failed/blocked resources, non-zero failure counts or unhealthy cluster state fail verification; absence of a recurring monitor is reported as a warning. Conditional policy rules require manual review.
+
+This is a read-only background operation: no configuration push, enable/disable, cleanup, reboot or power-off is requested. Individual results are stored as 08c; interrupted verification does not create a mutation-retry barrier. Definition or node identity changes invalidate affected 08c results. It does not certify actual power fencing, which remains a separate future test step. The STONITH phase now displays Steps 08a–08c and a 3-step completion counter with the same styling as the other macro groups.

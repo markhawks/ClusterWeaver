@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% from '_form_helpers.html' import render_field %}
+{% block title %}08b · Create Fencing Devices · {{ project.name }}{% endblock %}
+{% block content %}
+<section id="fencing-create" data-history-api="{{ url_for('cluster_operations.history',project_id=project.id) }}">
+<div class="d-flex justify-content-between align-items-center mb-4"><div><p class="text-secondary mb-1">Cluster STONITH Configuration and Testing</p><h1 class="h3">08b · Create Fencing Devices</h1><p>{{ project.name }} · {{ project.cluster_name or project.name }}</p></div><a class="btn btn-outline-secondary" href="{{ url_for('projects.detail',project_id=project.id) }}">Back to project</a></div>
+{% if reasons %}<div class="alert alert-info"><strong>Complete these prerequisites first:</strong><ul class="mb-0">{% for reason in reasons %}<li>{{ reason }}</li>{% endfor %}</ul><a href="{{ url_for('stonith.profiles',project_id=project.id) }}">Open step 08a</a></div>{% endif %}
+<div class="card mb-4"><div class="card-body"><p>Creates one fencing device for each saved iDRAC definition. Names come from step 08a and are not renamed here. Resources with matching definitions are verified and reused; conflicting resources stop the operation without being overwritten.</p>
+<p>Creation is issued once from one cluster coordinator. Before applying changes, ClusterWeaver verifies all nodes, quorum, cluster identity, fence agents and iDRAC status from surviving peer nodes. Commands are staged in a protected CIB file and pushed together. No power-off or reboot test is requested.</p>
+<div class="table-responsive"><table class="table"><thead><tr><th>Hostname</th><th>Pacemaker nodename</th><th>Resource name</th><th>iDRAC</th><th>Userid</th></tr></thead><tbody>{% for profile in profiles %}<tr><td>{{ profile.hostname }}</td><td>{{ profile.nodename }}</td><td>{{ profile.resource_name }}</td><td>{{ profile.controller_endpoint }}</td><td>{{ profile.username }}</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+<form id="fencing-create-form" method="post" novalidate>{{ form.hidden_tag() }}<fieldset{% if g.current_user.role=='user' %} disabled{% endif %}><div class="card mb-4"><div class="card-body">
+<div class="row"><div class="col-md-4">{{ render_field(form.power_wait) }}</div><div class="col-md-8">{{ render_field(form.failure_timeout) }}<p class="small text-secondary">Blank preserves defaults/existing policy. Zero means failures do not expire automatically.</p></div></div>
+<div class="form-check mb-3">{{ form.configure_monitor(class='form-check-input') }}{{ form.configure_monitor.label(class='form-check-label') }}</div>
+<div class="row" id="fencing-monitor-options"><div class="col-md-6">{{ render_field(form.monitor_interval) }}</div><div class="col-md-6">{{ render_field(form.monitor_timeout) }}</div></div>
+<p class="small text-secondary">No explicit monitor is added by default. pcs may create default operations; the actual operations are reported after creation. The method parameter is not added.</p>
+<div class="form-check mb-3">{{ form.disabled(class='form-check-input') }}{{ form.disabled.label(class='form-check-label') }}</div>
+<div class="alert alert-warning">Creating enabled devices makes fencing immediately available to Pacemaker. Select “Create new devices disabled” to defer activation. This option never disables resources that already exist.</div>
+<div class="form-check mb-3">{{ form.confirm(class='form-check-input') }}{{ form.confirm.label(class='form-check-label') }}{% for error in form.confirm.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>
+{% if g.current_user.role in ['administrator','clusteradmin'] %}<div class="d-flex gap-2">{{ form.preview(class='btn btn-outline-primary') }}{{ form.create(class='btn btn-primary',disabled=not profiles or reasons|length>0) }}</div>{% endif %}
+</div></div></fieldset></form>
+<div class="card mb-4"><div class="card-header fw-semibold">Command preview</div><div class="card-body"><p class="small text-secondary">These are the pcs creation commands with password placeholders. Actual creation stages them offline and injects saved passwords into a protected temporary XML file, not into the process arguments or displayed scripts. Nothing runs when opening this page.</p>{% for command in commands %}<pre class="code-panel" id="fencing-create-command-{{ loop.index }}"><code>{{ command }}</code></pre><button type="button" class="btn btn-sm btn-outline-primary copy-code mb-3" data-target="fencing-create-command-{{ loop.index }}">Copy command</button>{% endfor %}<div class="copy-status small text-success"></div></div></div>
+<div class="alert alert-info d-none" data-fencing-progress role="status"></div><div class="alert alert-danger d-none" data-fencing-error role="alert"></div>
+<div class="card"><div class="card-header fw-semibold">Creation history</div><div class="card-body" data-fencing-history></div></div>
+<script type="application/json" data-fencing-jobs>{{ jobs|tojson }}</script>
+</section>
+{% endblock %}

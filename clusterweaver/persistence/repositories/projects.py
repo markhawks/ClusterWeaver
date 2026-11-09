@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from clusterweaver.core.models import NodeData, ProjectData
 from clusterweaver.core.validators import host_address
+from clusterweaver.core.validators.project import gateway_node_conflicts
 from clusterweaver.persistence.models import NodeRecord, ProjectGroupRecord, ProjectRecord, StepExecutionRecord, utcnow
 
 
@@ -109,6 +110,9 @@ class ProjectRepository:
         cluster_ip = values.get("cluster_ip", "").strip()
         if management_ip and cluster_ip and host_address(management_ip) == host_address(cluster_ip):
             conflicts["cluster_ip"] = "Management and cluster IP addresses must be different."
+        peer_values = [{field: getattr(node, field) for field in ('hostname', 'management_ip', 'cluster_ip', 'management_gateway', 'cluster_gateway')} for node in nodes]
+        for field, message in gateway_node_conflicts(values, peer_values).items():
+            conflicts.setdefault(field, message)
         return conflicts
 
     def step_results(self, project_id: int) -> dict[str, list[StepExecutionRecord]]:

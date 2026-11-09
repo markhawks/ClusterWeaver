@@ -10,7 +10,7 @@
 
 Strumento per la creazione e la gestione del ciclo di vita dei cluster Linux High Availability.
 
-Versione corrente: **0.1.13** (30 ottobre 2026). La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
+Versione corrente: **0.1.14** (9 novembre 2026). La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
 
 ClusterWeaver è software libero distribuito con licenza [GNU Affero General Public License v3.0](LICENSE). Le versioni modificate offerte agli utenti attraverso una rete devono rendere disponibile il relativo codice sorgente con la stessa licenza. Per contribuire consulta [CONTRIBUTING.md](CONTRIBUTING.md) e [SECURITY.md](SECURITY.md).
 
@@ -18,7 +18,18 @@ Questo primo MVP gestisce progetti e nodi cluster RHEL 7, 9 e 10. Memorizza lo s
 
 I progetti possono essere assegnati a Project Group identificati da colore, con nome univoco e descrizione facoltativa. Home mostra gruppi e progetti non raggruppati in sezioni inizialmente chiuse con contatori; Project mantiene l’inventario completo ricercabile e ordinabile, includendo Group come colonna e filtro.
 
-Il workflow remoto è suddiviso in due fasi richiudibili. **Pre-Cluster Configuration** (step 00–04) gestisce bootstrap e discovery SSH, configurazione e verifica della rete, `/etc/hosts` e controlli preliminari. Tutte e tre le operazioni dello Step 00 possono essere visualizzate, copiate e aperte a schermo intero; su RHEL 7.9 la rete viene esclusivamente verificata, rilevando NetworkManager o i legacy network-scripts senza apportare modifiche, mentre RHEL 9.8 e 10.2 conservano la configurazione protetta. **Cluster Base Installation and Configuration** installa e verifica i pacchetti Pacemaker (step 05), abilita `pcsd` e autentica i nodi (step 06), quindi crea il cluster con il nome configurato e verifica membership, `WaitForAll` e quorum (step 07). Ogni azione è subordinata al completamento corretto degli step precedenti e registra il risultato per ciascun nodo.
+Il workflow remoto è suddiviso in tre fasi richiudibili. **Pre-Cluster Configuration** (step 00–04) gestisce bootstrap e discovery SSH, configurazione e verifica della rete, `/etc/hosts` e controlli preliminari. Tutte e tre le operazioni dello Step 00 possono essere visualizzate, copiate e aperte a schermo intero; su RHEL 7.9 la rete viene esclusivamente verificata, rilevando NetworkManager o i legacy network-scripts senza apportare modifiche, mentre RHEL 9.8 e 10.2 conservano la configurazione protetta. **Cluster Base Installation and Configuration** installa e verifica i pacchetti Pacemaker (step 05), abilita `pcsd` e autentica i nodi (step 06), quindi crea il cluster con il nome configurato e verifica membership, `WaitForAll` e quorum (step 07). Ogni azione applica i propri prerequisiti e registra il risultato per ciascun nodo; lo Skip esplicito della configurazione rete rimane distinto da una verifica riuscita.
+
+**Cluster STONITH Configuration and Testing** (step 08a–08c) definisce profili OEM o singole iDRAC, crea i device fencing IPMI dopo i controlli e ne verifica la configurazione in sola lettura. Ogni macrogruppo mostra gli step inclusi e i contatori di completamento. Questa release non implementa test reali di alimentazione.
+
+## Novità della versione 0.1.14
+
+- Skip esplicito della configurazione rete (00c) dopo discovery e scambio SSH, senza modifiche remote.
+- Validazione immediata dei gateway e blocco al salvataggio/importazione per collisioni con IP dei nodi, indirizzi fuori subnet o non utilizzabili.
+- Scelta tra profili OEM e singole iDRAC; nomi STONITH suggeriti dalle ultime due cifre dell’hostname, conservando quelli personalizzati.
+- Comandi IPMI manuali su una sola riga, interfaccia in inglese e data/ora degli ultimi controlli agenti.
+- Creazione device in background con 08b, anteprima, conferma, verifica dai nodi peer e protezione dei conflitti; verifica in sola lettura con 08c.
+- Installazione offline ancora deprecata, senza pubblicazione di bundle offline.
 
 ## Requisiti di sviluppo
 
@@ -265,3 +276,19 @@ I job vengono eseguiti in background nel processo web; HTTP restituisce subito e
 Un timeout di comando o perdita della connessione dopo l’invio produce **UNKNOWN / da verificare**, seguito da lettura dello stato senza ripetere la modifica. Serve un aggiornamento stato positivo prima di un’altra modifica. Un riavvio del worker interrompe il job: dopo 600 secondi la prenotazione viene liberata e l’esito marcato UNKNOWN, senza riavvio automatico del comando. Lo storico non viene incluso nelle esportazioni dei progetti. Applicare la migrazione `0017_cluster_operations` con `alembic upgrade head` prima di avviare questa versione.
 
 Il salvataggio delle password richiede `alembic upgrade head` (migrazione `0018_stonith_passwords`). Il servizio crea una chiave privata in `PROJECTS_ROOT.parent/stonith_secrets/key`; la directory è configurabile con `CLUSTERWEAVER_STONITH_SECRETS_ROOT` e deve restare fuori dal Git dei progetti. Conservare un backup protetto della directory insieme a SQLite: il solo database non consente di recuperare le password. La verifica iDRAC cerca anche in `/usr/sbin` con PATH ridotto; l’eseguibile deve essere presente e utilizzabile sui nodi cluster. Lo script Python manuale va eseguito su un nodo cluster e interroga da quel nodo i profili salvati.
+
+I campi gateway mostrano subito eventuali anomalie. Il salvataggio e l’importazione rifiutano gateway fuori subnet, coincidenti con IP dei nodi, indirizzi di rete/broadcast o non unicast. Non è possibile assegnare a un nuovo nodo un indirizzo già usato come gateway nel progetto. Questi controlli non dimostrano la raggiungibilità del router né che un indirizzo formalmente valido corrisponda alla route effettiva.
+
+## Step 08b: creazione delle risorse fencing
+
+La pagina **Create Fencing Devices** usa i nomi salvati in 08a. I nuovi profili propongono `STONITH-` seguito dalle ultime due cifre dell’hostname; i nomi personalizzati già salvati sono mantenuti. Sono richiesti PASS di 00k, 08a e inventario agenti per tutti i nodi, chiave SSH attiva, identità cluster corretta, quorum e nodi online senza errori irrisolti. Ogni controller deve rispondere al controllo di stato da almeno un altro nodo.
+
+Default: `lanplus=1` e `power_wait=4`, senza aggiungere `method` o monitor espliciti. Monitor, timeout e scadenza errori sono configurabili. La creazione può lasciare disabilitate le nuove risorse. Se abilitate, diventano disponibili a Pacemaker; questo step non richiede test di spegnimento o riavvio.
+
+Il job lavora in background, prepara i device mancanti in un CIB temporaneo protetto e applica un unico diff da un coordinatore. Le password non sono inserite nei comandi visualizzati o negli argomenti dei processi. Le risorse coerenti sono riutilizzate, quelle in conflitto non vengono sovrascritte; gli esiti incerti non sono ripetuti automaticamente. La creazione iniziale supporta soltanto iDRAC/IPMI; OEM, Cisco, ILOM e VMware restano da implementare per 08b.
+
+## Step 08c: verifica della configurazione fencing
+
+Dopo il PASS di 08b su tutti i nodi, 08c legge CIB e stato Pacemaker per verificare associazione risorsa/iDRAC/nodename, credenziali salvate, risorse abilitate/gestite/attive, monitor, timeout, contatori di errore, quorum e accesso ai controller dai nodi peer. Device disabilitati o non attivi, errori e contatori non zero producono FAIL; l’assenza di un monitor periodico viene segnalata come avviso. Policy condizionali richiedono una verifica manuale.
+
+Il job è in sola lettura: non modifica configurazioni, non abilita risorse, non esegue cleanup e non spegne o riavvia nodi. Non certifica il fencing fisico, che resta un test distinto da implementare. Il gruppo STONITH mostra Steps 08a–08c, un contatore su tre step e la stessa grafica degli altri macrogruppi.

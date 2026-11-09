@@ -99,14 +99,14 @@ except ValueError as exc:
 '''
 
 
-def verify_ipmi_profiles_on_nodes(nodes, credentials, profiles):
+def verify_ipmi_profiles_on_nodes(nodes, credentials, profiles, budget=45):
     """Each node checks its associated controller; no agent runs on the web host."""
     from concurrent.futures import ThreadPoolExecutor, wait
     import shlex
     from clusterweaver.core.services.ssh_bootstrap import _connect, _collect_channel
     from clusterweaver.core.services.ssh_credentials import redact_output
     nodes_by_name = {node.hostname: node for node in nodes}
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + min(45, max(0, budget))
     command = 'python3 -c ' + shlex.quote(remote_ipmi_program())
 
     def check(profile):
@@ -158,3 +158,19 @@ def verify_ipmi_profiles_on_nodes(nodes, credentials, profiles):
         return results
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
+
+
+def generate_ipmi_manual_command(profile):
+    """One copyable agent command; stored passwords never enter displayed text."""
+    import shlex
+    from clusterweaver.core.services.dell_ipmi import validate_ipmi_definition
+    validate_ipmi_definition(profile['controller_endpoint'], profile['resource_name'])
+    if not profile.get('username') or any(c in profile['username'] for c in '\r\n\x00'):
+        raise ValueError('Userid must not be empty or contain newlines/NUL characters.')
+    return ' '.join([
+        '/usr/sbin/fence_ipmilan',
+        shlex.quote('--ip=' + profile['controller_endpoint']),
+        shlex.quote('--username=' + profile['username']),
+        "--password='YOUR_IDRAC_PASSWORD'",
+        '--lanplus', '--action=status', '--method=onoff',
+    ])

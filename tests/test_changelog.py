@@ -17,6 +17,8 @@ def test_changelog_page_is_available(client):
     assert response.status_code == 200
     assert b"0.1.0" in response.data
     assert b"Modular Flask application" in response.data
+    assert b"0.1.14" in response.data
+    assert b"2026-11-09" in response.data
     assert b"0.1.13" in response.data
     assert b"2026-10-30" in response.data
     assert b"0.1.12" in response.data

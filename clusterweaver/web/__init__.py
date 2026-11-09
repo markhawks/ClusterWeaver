@@ -80,6 +80,9 @@ def create_app(config_object=Config, **overrides) -> Flask:
     from clusterweaver.web.routes.cluster_operations import cluster_operations_bp
     app.register_blueprint(cluster_operations_bp)
 
+    from clusterweaver.web.routes.fencing_create import fencing_create_bp
+    app.register_blueprint(fencing_create_bp)
+
     @app.before_request
     def require_login():
         if app.config["LOGIN_DISABLED"]:
@@ -108,7 +111,7 @@ def create_app(config_object=Config, **overrides) -> Flask:
                 "projects.download_package_install",
                 "projects.download_pcsd_auth",
                 "projects.download_cluster_setup",
-                "stonith.profiles", "ssh_access.manage",
+                "stonith.profiles", "fencing_create.create", "fencing_create.verify", "ssh_access.manage",
                 "cluster_operations.start", "cluster_operations.history",
                 "settings.configuration", "settings.change_password", "auth.logout",
             }

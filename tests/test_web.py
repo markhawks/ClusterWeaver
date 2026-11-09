@@ -26,7 +26,7 @@ def test_login_protects_application_and_shows_project_identity(tmp_path):
     assert protected.status_code == 302 and "/login?next=/" in protected.headers["Location"]
     page = login_client.get("/login")
     assert b"ClusterWeaver project logo" in page.data
-    assert b"Version 0.1.13" in page.data
+    assert b"Version 0.1.14" in page.data
     assert b"remotely executes controlled workflows" in page.data
     assert b'<html lang="en" data-bs-theme="dark">' in page.data
     assert b'<body class="login-page">' in page.data
@@ -242,7 +242,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"Changelog" in response.data and b"Changelog <small" not in response.data
     assert b"Configuration" in response.data and b"About ClusterWeaver" in response.data
     assert b"github.com/markhawks/ClusterWeaver" in response.data and b"Author: Mark Hawks" in response.data and b"Gunicorn" in response.data
-    assert "ClusterWeaver</strong><span>– Version 0.1.13</span>".encode() in response.data
+    assert "ClusterWeaver</strong><span>– Version 0.1.14</span>".encode() in response.data
     assert b"Linux High Availability Cluster Builder &amp; Lifecycle Manager" in response.data
     assert b'rel="icon"' in response.data
     assert b'/static/css/app.css?v=' in response.data and b'/static/js/app.js?v=' in response.data
@@ -251,7 +251,7 @@ def test_project_creation_writes_database_yaml_and_git(client, app):
     assert b"SSH discovery" in response.data and b"Peer SSH trust" in response.data and b"Network configuration" in response.data
     assert b"cw-icon-oscilloscope" in response.data
     assert b"cw-icon-cluster-settings" in response.data
-    assert response.data.count(b"cw-icon-footprints") == 8
+    assert response.data.count(b"cw-icon-footprints") == 11
     assert b"0/5 complete" in response.data and b"5/5 remaining" in response.data
     assert b"0/3 complete" in response.data and b"3/3 remaining" in response.data
     assert b'id="pre-cluster-workflow" class="collapse show"' in response.data
@@ -755,3 +755,52 @@ def test_copy_script_has_http_fallback(client):
     assert response.status_code == 200
     assert b'document.execCommand("copy")' in response.data
     assert b"window.isSecureContext" in response.data
+
+
+def test_network_skip_unlocks_prechecks_without_network_changes(client, app, monkeypatch):
+    response = client.post('/projects/new', data=dict(name='Skip network', customer='Example', rhel_major='9', rhel_minor='8', platform_type='virtual', hypervisor='kvm', node_count='2'))
+    url = response.headers['Location']
+    for index in (1, 2):
+        client.post(url + '/nodes/new', data=dict(hostname=f'node0{index}', nodename=f'node0{index}lanc', management_ip=f'192.0.2.{index}/24', management_gateway='192.0.2.254', primary_interface='ens160', bootstrap_ip=f'192.0.2.{index}', ssh_port='22'))
+    monkeypatch.setattr('clusterweaver.web.routes.projects.configure_node_network', lambda *a, **k: (_ for _ in ()).throw(AssertionError('Skip must not execute network commands')))
+    rejected = client.post(url + '/network-skip', follow_redirects=True)
+    assert b'Complete SSH discovery' in rejected.data
+    mark_step_00_complete(app, through='00b')
+    with app.app_context():
+        nodes = db.session.query(NodeRecord).order_by(NodeRecord.id).all()
+        db.session.add(StepExecutionRecord(project_id=nodes[0].project_id, node_id=nodes[0].id, step='00c', status='pass', output='Verified previously'))
+        db.session.commit()
+    response = client.post(url + '/network-skip', follow_redirects=True)
+    assert b'SKIPPED' in response.data
+    assert b'id="workflow-run-01" class="btn btn-success"' in response.data
+    with app.app_context():
+        records = db.session.query(StepExecutionRecord).filter_by(step='00c').order_by(StepExecutionRecord.node_id).all()
+        assert [r.status for r in records] == ['pass', 'skipped']
+        assert records[0].output == 'Verified previously'
+        assert 'skipped by test' in records[1].output
+        assert [n.bootstrap_ip for n in db.session.query(NodeRecord).order_by(NodeRecord.id)] == ['192.0.2.1', '192.0.2.2']
+    calls = []
+    def precheck(node, credentials, script):
+        calls.append(node.id)
+        return SimpleNamespace(hostname=node.hostname, endpoint=node.bootstrap_ip, ok=True, output='PASS')
+    monkeypatch.setattr('clusterweaver.web.routes.projects.run_remote_script', precheck)
+    assert client.post(url + '/run-prechecks', data={'password': 'temporary'}).status_code == 200
+    assert len(calls) == 2
+    assert client.get(url + '/network-skip').status_code == 405
+    app.config['WTF_CSRF_ENABLED'] = True
+    assert client.post(url + '/network-skip').status_code == 400
+
+
+def test_network_skip_forbids_read_only_users(client, app):
+    response = client.post('/projects/new', data=dict(name='Skip permissions', customer='Example', rhel_major='9', rhel_minor='8', platform_type='virtual', hypervisor='kvm', node_count='1'))
+    url = response.headers['Location']
+    with app.app_context():
+        user = UserRecord(username='skip-reader', password_hash=generate_password_hash('example-password'), role='user')
+        db.session.add(user)
+        db.session.commit()
+        user_id = user.id
+    app.config['LOGIN_DISABLED'] = False
+    with client.session_transaction() as session:
+        session['authenticated'], session['user_id'] = True, user_id
+    assert client.post(url + '/network-skip').status_code == 403
+    assert b'id="network-skip"' not in client.get(url).data

@@ -181,8 +181,8 @@ def test_api_requires_verified_keys_confirmation_and_serializes_jobs(client, app
     assert client.post(f'/projects/{project.id}/ssh-access').status_code == 409
     assert client.post(f'/projects/{project.id}/delete').status_code == 409
     page = client.get(f'/projects/{project.id}')
-    assert b'Cluster Operations and Status' in page.data and b'Gestisci cluster' in page.data
-    assert b'data-ready="true"' in page.data and b'Abilita al boot' in page.data
+    assert b'Cluster Operations and Status' in page.data and b'Manage cluster' in page.data
+    assert b'data-ready="true"' in page.data and b'Enable at boot' in page.data
     # Expired/interrupted jobs are marked unknown and never replayed.
     job = db.session.get(ClusterOperationRecord, jobs[0]['id'])
     job.created_at = utcnow() - timedelta(seconds=ops.STALE_AFTER + 1)

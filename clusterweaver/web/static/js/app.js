@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const localDate = date => date ? new Date(date).toLocaleString('it-IT') : '—';
   function render() {
     const active = jobs.find(job => ['queued', 'running'].includes(job.status));
-    const uncertain = jobs.find(job => job.action !== 'status' && job.status === 'unknown');
+    const uncertain = jobs.find(job => !['status','fencing_verify'].includes(job.action) && job.status === 'unknown');
     const needsRefresh = uncertain && !jobs.some(job => job.action === 'status' && job.status === 'pass' && Date.parse(job.created_at) > Date.parse(uncertain.created_at));
     panel.querySelectorAll('[data-cluster-action]').forEach(button => {
       button.disabled = panel.dataset.ready !== 'true' || Boolean(active) || sending || (Boolean(needsRefresh) && button.dataset.clusterAction !== 'status');
@@ -265,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (active) {
       const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(active.created_at)) / 1000));
       progress.classList.remove('d-none');
-      progress.textContent = `${actions[active.action][0]} · ${active.phase} · ${elapsed}s / ${active.budget}s`;
+      progress.textContent = `${actions[active.action]?.[0] || ({'fencing_create':'Create fencing devices','fencing_verify':'Verify fencing configuration'}[active.action] || active.action)} · ${active.phase} · ${elapsed}s / ${active.budget}s`;
       if (elapsed > active.budget) progress.textContent += ' · Deadline exceeded: outcome requires verification.';
     } else if (needsRefresh) {
       progress.classList.remove('d-none');
@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       progress.classList.add('d-none');
     }
-    const recent = jobs.find(job => job.results.length);
+    const recent = jobs.find(job => !['fencing_create','fencing_verify'].includes(job.action) && job.results.length);
     const rows = recent?.results || [];
     const views = rows.filter(result => result.snapshot).map(result => result.snapshot);
     const quorum = views.length ? (views.every(view => view.quorum === true) ? 'Yes' : views.some(view => view.quorum === false) ? 'No / inconsistent' : 'not available') : 'not checked';
@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const details = document.createElement('details');
       details.className = 'border rounded p-2 mb-2';
       const summary = document.createElement('summary');
-      summary.textContent = `${localDate(job.created_at)} · ${job.username} · ${actions[job.action][0]}${job.target_node ? ' ' + job.target_node : ''} · ${job.status.toUpperCase()} · ${job.phase}`;
+      summary.textContent = `${localDate(job.created_at)} · ${job.username} · ${actions[job.action]?.[0] || ({'fencing_create':'Create fencing devices','fencing_verify':'Verify fencing configuration'}[job.action] || job.action)}${job.target_node ? ' ' + job.target_node : ''} · ${job.status.toUpperCase()} · ${job.phase}`;
       details.appendChild(summary);
       job.results.forEach(result => {
         const pre = document.createElement('pre');
@@ -416,4 +416,154 @@ document.addEventListener("input", (event) => {
 });
 window.addEventListener("pagehide", () => {
   document.querySelectorAll('#stonith-profiles-form input[type="text"][autocomplete="new-password"]').forEach(input => { input.value = ""; input.type = "password"; });
+});
+
+
+// Early configuration feedback; server validation remains authoritative.
+document.addEventListener("DOMContentLoaded", () => {
+  const inventory = document.getElementById("gateway-node-inventory");
+  if (!inventory) return;
+  const peers = JSON.parse(inventory.textContent);
+  const names = ["management_ip", "management_gateway", "cluster_ip", "cluster_gateway"];
+  const fields = Object.fromEntries(names.map(name => [name, document.getElementById(name)]));
+  const ipNumber = value => {
+    const parts = value.split(".");
+    if (parts.length !== 4 || parts.some(part => !/^(0|[1-9][0-9]{0,2})$/.test(part) || Number(part) > 255)) return null;
+    return parts.reduce((value, part) => value * 256 + Number(part), 0);
+  };
+  const hostNumber = value => ipNumber((value || "").trim().split("/")[0]);
+  const messages = {};
+  names.forEach(name => {
+    const message = document.createElement("div");
+    message.id = name + "-gateway-feedback";
+    message.className = "small text-danger";
+    message.setAttribute("role", "status");
+    fields[name].parentElement.appendChild(message);
+    fields[name].setAttribute("aria-describedby", [fields[name].getAttribute("aria-describedby"), message.id].filter(Boolean).join(" "));
+    messages[name] = message;
+  });
+  const update = () => {
+    names.forEach(name => { messages[name].textContent = ""; });
+    const values = Object.fromEntries(names.map(name => [name, fields[name].value.trim()]));
+    for (const [addressField, gatewayField] of [["management_ip", "management_gateway"], ["cluster_ip", "cluster_gateway"]]) {
+      const gateway = values[gatewayField];
+      if (!gateway) continue;
+      const router = ipNumber(gateway);
+      let error = "";
+      if (router === null) error = "Enter a valid IPv4 gateway address.";
+      else if (Math.floor(router / 16777216) === 0 || Math.floor(router / 16777216) === 127 || router >= 3758096384) error = "Gateway must be a usable unicast router address.";
+      else if (!values[addressField]) error = "Configure the corresponding node IP and subnet before its gateway.";
+      else {
+        const [ip, prefix] = values[addressField].split("/");
+        const local = ipNumber(ip);
+        if (local !== null && /^\d+$/.test(prefix || "") && Number(prefix) <= 32) {
+          const size = 2 ** (32 - Number(prefix));
+          const network = Math.floor(local / size) * size;
+          if (router < network || router >= network + size) error = "Gateway must belong to the corresponding subnet.";
+          else if (router === local) error = "Gateway cannot equal the node IP address; enter the router address.";
+          else if (Number(prefix) <= 30 && (router === network || router === network + size - 1)) error = "Gateway cannot be the subnet network or broadcast address.";
+        }
+        const conflict = [{...values, hostname: "this node"}, ...peers].find(node => [node.management_ip, node.cluster_ip].some(address => address && hostNumber(address) === router));
+        if (conflict) error = "Gateway equals a node IP address (" + conflict.hostname + "); enter the router address.";
+      }
+      messages[gatewayField].textContent = error;
+    }
+    for (const name of ["management_ip", "cluster_ip"]) {
+      const host = hostNumber(values[name]);
+      if (host === null) continue;
+      const peer = peers.find(node => [node.management_gateway, node.cluster_gateway].some(gateway => gateway && ipNumber(gateway) === host));
+      if (peer) messages[name].textContent = "This IP address is already configured as a gateway for " + peer.hostname + ".";
+    }
+  };
+  names.forEach(name => fields[name].addEventListener("input", update));
+  update();
+});
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const panel = document.getElementById("fencing-create") || document.getElementById("fencing-verify");
+  if (!panel) return;
+  const form = document.getElementById("fencing-create-form") || document.getElementById("fencing-verify-form");
+  const jobAction = panel.dataset.jobAction || "fencing_create";
+  const history = panel.querySelector("[data-fencing-history]");
+  const progress = panel.querySelector("[data-fencing-progress]");
+  const error = panel.querySelector("[data-fencing-error]");
+  const create = form.querySelector('[name="create"], [name="verify"]');
+  const initiallyDisabled = create?.disabled;
+  let jobs = JSON.parse(panel.querySelector("[data-fencing-jobs]").textContent), timer, sending = false;
+  const monitor = document.getElementById("configure_monitor");
+  const monitorOptions = document.getElementById("fencing-monitor-options");
+  const updateMonitor = () => {
+    monitorOptions.hidden = !monitor.checked;
+    monitorOptions.querySelectorAll("input").forEach(input => {input.disabled = !monitor.checked || monitor.disabled;});
+  };
+  if (monitor) {
+    monitor.addEventListener("change", updateMonitor);
+    updateMonitor();
+  }
+  const render = () => {
+    history.replaceChildren();
+    for (const job of jobs.filter(job => job.action === jobAction)) {
+      const item = document.createElement("article");
+      item.className = "mb-3";
+      const title = document.createElement("strong");
+      title.textContent = `${job.created_at} · ${job.username} · ${job.status.toUpperCase()} · ${job.phase}`;
+      item.appendChild(title);
+      for (const result of job.results || []) {
+        const output = document.createElement("pre");
+        output.className = "code-panel mt-2";
+        output.textContent = `${result.hostname} · ${result.resource || ""}\n${result.output || ""}`;
+        item.appendChild(output);
+      }
+      history.appendChild(item);
+    }
+    if (!history.children.length) history.textContent = "No operations recorded.";
+    const active = jobs.find(job => ["queued", "running"].includes(job.status));
+    if (create) create.disabled = initiallyDisabled || sending || Boolean(active);
+    progress.classList.toggle("d-none", !active && !sending);
+    if (active) {
+      const elapsed = Math.max(0, Math.floor((Date.now()-Date.parse(active.created_at))/1000));
+      progress.textContent = `${active.phase} · ${elapsed}s elapsed · ${active.budget}s budget`;
+    }
+    if (active && !timer) timer = window.setTimeout(poll, 2000);
+  };
+  const poll = async () => {
+    timer = null;
+    try {
+      const response = await fetch(panel.dataset.historyApi, {cache:"no-store"});
+      if (!response.ok) throw new Error("Unable to read the operation status. Reload before retrying.");
+      jobs = (await response.json()).jobs;
+      render();
+    } catch (exception) {
+      error.textContent = exception.message;
+      error.classList.remove("d-none");
+      if (create) create.disabled = true;
+    }
+  };
+  form.addEventListener("submit", async event => {
+    if (!["create","verify"].includes(event.submitter?.name)) return;
+    event.preventDefault();
+    if (sending) return;
+    const body = new FormData(form);
+    body.set(event.submitter.name,"y");
+    sending = true;
+    error.classList.add("d-none");
+    progress.textContent = jobAction === "fencing_verify" ? "Submitting read-only fencing verification…" : "Submitting fencing creation request…";
+    render();
+    try {
+      const response = await fetch(form.action, {method:"POST",body});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Operation request failed.");
+      jobs.unshift(data);
+      sending = false;
+      render();
+    } catch (exception) {
+      sending = false;
+      // Do not automatically resubmit an uncertain mutation request.
+      error.textContent = exception.message + " Reload the page and review history before retrying.";
+      error.classList.remove("d-none");
+      if (create) create.disabled = true;
+    }
+  });
+  render();
 });

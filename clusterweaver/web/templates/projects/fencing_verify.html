@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}08c · Verify Fencing Configuration · {{ project.name }}{% endblock %}
+{% block content %}
+<section id="fencing-verify" data-job-action="fencing_verify" data-history-api="{{ url_for('cluster_operations.history',project_id=project.id) }}">
+<div class="d-flex justify-content-between align-items-center mb-4"><div><p class="text-secondary mb-1">Cluster STONITH Configuration and Testing</p><h1 class="h3">08c · Verify Fencing Configuration</h1><p>{{ project.name }} · {{ project.cluster_name or project.name }}</p></div><a class="btn btn-outline-secondary" href="{{ url_for('projects.detail',project_id=project.id) }}">Back to project</a></div>
+{% if reasons %}<div class="alert alert-info"><strong>Complete these prerequisites first:</strong><ul class="mb-0">{% for reason in reasons %}<li>{{ reason }}</li>{% endfor %}</ul><a href="{{ url_for('fencing_create.create',project_id=project.id) }}">Open step 08b</a></div>{% endif %}
+<div class="card mb-4"><div class="card-body"><p>Reads the actual Pacemaker fencing definitions and runtime state. This does not reboot or power off nodes, change configuration, enable devices, clear failure counts or prove physical fencing.</p>
+<ul><li>Expected cluster identity, node membership, quorum and node state.</li><li>Correct STONITH agent, iDRAC address, userid, saved credentials and Pacemaker nodename mapping.</li><li>Enabled, managed and active devices; global fencing and maintenance settings.</li><li>Configured monitor operations, timeouts, failure-timeout and recorded failure counts.</li><li>Fence agents and read-only controller status from surviving peer nodes.</li></ul>
+<p class="small text-secondary">Missing recurring monitors are reported as warnings. Disabled, stopped, failed or blocked devices and non-zero failure counts fail verification. Failure records are left intact for diagnosis.</p>
+<div class="table-responsive"><table class="table"><thead><tr><th>Hostname</th><th>Pacemaker nodename</th><th>Resource name</th><th>iDRAC</th></tr></thead><tbody>{% for profile in profiles %}<tr><td>{{ profile.hostname }}</td><td>{{ profile.nodename }}</td><td>{{ profile.resource_name }}</td><td>{{ profile.controller_endpoint }}</td></tr>{% endfor %}</tbody></table></div>
+<form id="fencing-verify-form" method="post">{{ form.hidden_tag() }}{% if g.current_user.role in ['administrator','clusteradmin'] %}{{ form.verify(class='btn btn-primary',disabled=reasons|length>0 or not profiles) }}{% endif %}</form>
+</div></div>
+<div class="alert alert-info d-none" data-fencing-progress role="status"></div><div class="alert alert-danger d-none" data-fencing-error role="alert"></div>
+<div class="card"><div class="card-header fw-semibold">Verification history</div><div class="card-body" data-fencing-history></div></div>
+<script type="application/json" data-fencing-jobs>{{ jobs|tojson }}</script>
+</section>
+{% endblock %}

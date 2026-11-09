@@ -13,6 +13,7 @@ import yaml
 
 from clusterweaver.core.serializers.yaml_project import project_to_yaml
 from clusterweaver.core.validators import validate_ip_address, validate_ipv4_cidr, validate_rhel_release
+from clusterweaver.core.validators.project import validate_gateway, gateway_node_conflicts
 from clusterweaver.version import __version__
 
 
@@ -185,23 +186,21 @@ def _validate_project_document(document) -> dict:
         }
         try:
             management = validate_ipv4_cidr(node["management_ip"])
-            validate_ip_address(node["management_gateway"])
+            validate_gateway(node["management_ip"], node["management_gateway"])
             if node["cluster_ip"]:
                 cluster = validate_ipv4_cidr(node["cluster_ip"])
             else:
                 cluster = None
-            validate_ip_address(node["cluster_gateway"])
+            if node["cluster_gateway"]:
+                if not node["cluster_ip"]:
+                    raise ValueError("Configure the cluster/private IP and subnet before its gateway.")
+                validate_gateway(node["cluster_ip"], node["cluster_gateway"], 'Cluster/private')
             validate_ip_address(node["bootstrap_ip"])
             port = int(raw.get("ssh_port", 22))
         except (TypeError, ValueError) as exc:
             raise ProjectTransferError(str(exc)) from exc
         if not 1 <= port <= 65535:
             raise ProjectTransferError("SSH port must be between 1 and 65535.")
-        from ipaddress import ip_address
-        if ip_address(node["management_gateway"]) not in management.network:
-            raise ProjectTransferError(f"Management gateway is outside the subnet for {hostname}.")
-        if node["cluster_gateway"] and (cluster is None or ip_address(node["cluster_gateway"]) not in cluster.network):
-            raise ProjectTransferError(f"Cluster gateway is outside the subnet for {hostname}.")
         addresses = [str(management.ip)] + ([str(cluster.ip)] if cluster else [])
         if seen_ips.intersection(addresses):
             raise ProjectTransferError(f"Duplicate IP address in node {hostname}.")
@@ -219,6 +218,11 @@ def _validate_project_document(document) -> dict:
         },
         "nodes": normalized_nodes,
     }
+    for index, node in enumerate(normalized_nodes):
+        conflicts = gateway_node_conflicts(node, normalized_nodes[:index] + normalized_nodes[index + 1:])
+        if conflicts:
+            raise ProjectTransferError(f"Invalid gateway configuration for {node['hostname']}: " + '; '.join(conflicts.values()))
+
     stonith = document.get("stonith")
     if stonith is not None:
         from clusterweaver.core.services.dell_oem import validate_oem_endpoint

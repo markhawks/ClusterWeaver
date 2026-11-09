@@ -11,13 +11,13 @@ from clusterweaver.persistence.models import ClusterOperationRecord, ProjectReco
 from clusterweaver.core.services.ssh_bootstrap import _connect, _collect_channel
 
 ACTIONS = {
-    'status': ('Aggiorna stato', 'Read-only: updates cluster and node status.'),
-    'start': ('Avvia cluster', 'Starts cluster services on all configured nodes; application resources may start.'),
-    'stop': ('Arresta cluster', 'Stops cluster services on all configured nodes, including application resources.'),
-    'enable': ('Abilita al boot', 'Enables cluster services at boot on every node; does not start them.'),
-    'disable': ('Disabilita al boot', 'Disables cluster services at boot on every node; does not stop them.'),
-    'standby': ('Standby nodo', 'Prevents the selected node from hosting resources; resources may move to another node.'),
-    'unstandby': ('Unstandby nodo', 'Allows the selected node to host resources; resources may remain on other nodes.'),
+    'status': ('Refresh status', 'Read-only: updates cluster and node status.'),
+    'start': ('Start cluster', 'Starts cluster services on all configured nodes; application resources may start.'),
+    'stop': ('Stop cluster', 'Stops cluster services on all configured nodes, including application resources.'),
+    'enable': ('Enable at boot', 'Enables cluster services at boot on every node; does not start them.'),
+    'disable': ('Disable at boot', 'Disables cluster services at boot on every node; does not stop them.'),
+    'standby': ('Standby node', 'Prevents the selected node from hosting resources; resources may move to another node.'),
+    'unstandby': ('Unstandby node', 'Allows the selected node to host resources; resources may remain on other nodes.'),
 }
 JOB_BUDGET = 360
 STALE_AFTER = 600

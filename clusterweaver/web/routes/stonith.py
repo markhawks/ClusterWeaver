@@ -1,11 +1,12 @@
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for, jsonify
 from sqlalchemy import delete
 
-from clusterweaver.core.services.stonith import generate_oem_verification_script, verify_oem_profiles, generate_ipmi_verification_script, verify_ipmi_profiles_on_nodes
+from clusterweaver.core.services.stonith import generate_oem_verification_script, verify_oem_profiles, generate_ipmi_verification_script, verify_ipmi_profiles_on_nodes, generate_ipmi_manual_command
 from clusterweaver.core.services.dell_ipmi import validate_ipmi_definition
 from clusterweaver.core.services.fence_agents import check_cluster_agents, generate_agent_check_script, INSTALL_ALL_COMMAND
 from clusterweaver.persistence import db
 from clusterweaver.persistence.models import StonithConfigurationRecord, StonithProfileRecord, StepExecutionRecord, utcnow
+from clusterweaver.core.services.fencing_create import default_resource_name
 from clusterweaver.web.stonith_secrets import encrypt_password, decrypt_password
 from clusterweaver.web.ssh_credentials import project_credentials
 from clusterweaver.web.forms.stonith import StonithProfilesForm, FenceAgentsCheckForm
@@ -29,14 +30,14 @@ def profiles(project_id):
     configuration = record.stonith_configuration
     form = StonithProfilesForm()
     if request.method == "GET":
-        form.mode.data = configuration.mode if configuration else "oem"
+        form.mode.data = configuration.mode if configuration else "ipmi"
         form.endpoint.data = configuration.endpoint if configuration else ""
         saved = {profile.node_id: profile for profile in configuration.profiles} if configuration else {}
         for node in project.nodes:
             profile = saved.get(node.id)
             form.profiles.append_entry(dict(node_id=str(node.id), hostname=node.hostname,
                 profile_name=profile.profile_name if profile else "", username=profile.username if profile else "",
-                controller_endpoint=profile.controller_endpoint if profile else "", resource_name=profile.resource_name if profile else ""))
+                controller_endpoint=profile.controller_endpoint if profile else "", resource_name=profile.resource_name if profile and profile.resource_name else default_resource_name(node.hostname)))
     if request.method == "POST" and g.current_user.role not in {"administrator", "clusteradmin"}:
         abort(403)
     if form.validate_on_submit():
@@ -136,7 +137,7 @@ def profiles(project_id):
                 profile.controller_endpoint, profile.resource_name = controller, resource
                 profile.profile_name, profile.username = name, username
             if changed:
-                db.session.execute(delete(StepExecutionRecord).where(StepExecutionRecord.project_id == project_id, StepExecutionRecord.step.in_(["08a", "08a-fa"])))
+                db.session.execute(delete(StepExecutionRecord).where(StepExecutionRecord.project_id == project_id, StepExecutionRecord.step.in_(["08a", "08a-fa", "08b", "08c"])))
             record.updated_at = utcnow()
             db.session.commit()
             persist_files(project_id, f"Define DELL STONITH profiles for {record.name}")
@@ -155,6 +156,7 @@ def profiles(project_id):
             return redirect(url_for("projects.detail", project_id=project_id))
     saved_definitions = definitions(configuration)
     response = current_app.make_response(render_template("projects/stonith_profiles.html", project=project, form=form,
+        manual_ipmi_commands=[dict(hostname=profile["hostname"], command=generate_ipmi_manual_command(profile)) for profile in saved_definitions] if configuration and configuration.mode == "ipmi" else [],
         saved_passwords={str(profile.node_id): bool(profile.password_encrypted) for profile in configuration.profiles} if configuration else {},
         verification_script=(generate_ipmi_verification_script(saved_definitions) if configuration.mode == "ipmi" else generate_oem_verification_script(configuration.endpoint, saved_definitions)) if configuration else "",
         results=repository().step_results(project_id).get("08a", []),

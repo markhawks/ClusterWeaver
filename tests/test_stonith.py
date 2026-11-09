@@ -31,7 +31,7 @@ def stonith_project(app):
 
 
 def profile_data(project, verify=False):
-    data = {"hardware": "dell", "endpoint": "ome.example.test", "verify" if verify else "save": "y"}
+    data = {"hardware": "dell", "mode": "oem", "endpoint": "ome.example.test", "verify" if verify else "save": "y"}
     for index, node in enumerate(project.nodes):
         data.update({f"profiles-{index}-node_id": str(node.id), f"profiles-{index}-hostname": node.hostname,
                      f"profiles-{index}-profile_name": f"Profile {node.hostname}",
@@ -420,3 +420,65 @@ def test_ipmi_web_verification_dispatches_saved_credentials_to_nodes(client, app
     assert response.status_code == 200 and b'Status: ON via SSH' in response.data
     assert len(observed) == 2 and all(p['password'] == 'not-a-real-secret' for p in observed)
     assert b'not-a-real-secret' not in response.data
+
+
+def test_fencing_method_is_explicit_and_preserves_saved_oem_selection(client, stonith_project):
+    from html.parser import HTMLParser
+    class RadioParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.modes = []
+            self.selected = []
+        def handle_starttag(self, tag, attrs):
+            values = dict(attrs)
+            if tag == 'input' and values.get('name') == 'mode' and values.get('type') == 'radio':
+                self.modes.append(values['value'])
+                if 'checked' in values:
+                    self.selected.append(values['value'])
+    path = f'/projects/{stonith_project.id}/stonith/profiles'
+    page = client.get(path)
+    parser = RadioParser()
+    parser.feed(page.data.decode())
+    assert parser.modes == ['ipmi', 'oem']
+    assert parser.selected == ['ipmi']
+    assert b'Single iDRAC per node / IPMI' in page.data
+    assert b'DELL OEM profiles' in page.data
+    assert client.post(path, data=profile_data(stonith_project)).status_code == 302
+    parser = RadioParser()
+    parser.feed(client.get(path).data.decode())
+    assert parser.selected == ['oem']
+
+
+def test_manual_ipmi_command_prefills_public_fields_without_password_or_shell_injection(tmp_path):
+    import shlex
+    from clusterweaver.core.services.stonith import generate_ipmi_manual_command
+    marker = tmp_path / 'must-not-exist'
+    profile = dict(hostname='node01', controller_endpoint='192.0.2.10', resource_name='fence-node01', username=f'operator$(touch {marker})', password='stored-secret-never-rendered')
+    command = generate_ipmi_manual_command(profile)
+    assert '\n' not in command
+    assert shlex.split(command) == ['/usr/sbin/fence_ipmilan', '--ip=192.0.2.10', '--username='+profile['username'], '--password=YOUR_IDRAC_PASSWORD', '--lanplus', '--action=status', '--method=onoff']
+    assert profile['password'] not in command
+    assert subprocess.run(['bash', '-n'], input=command, text=True, capture_output=True).returncode == 0
+    # Exercise shell parsing using a harmless printf instead of the real agent.
+    result = subprocess.run(['bash', '-c', command.replace('/usr/sbin/fence_ipmilan', "printf '%s\\n'", 1)], capture_output=True, text=True)
+    assert result.returncode == 0 and not marker.exists()
+    assert '--username='+profile['username'] in result.stdout
+    with pytest.raises(ValueError):
+        generate_ipmi_manual_command({**profile, 'username': 'operator\naction=off'})
+
+
+def test_manual_command_controls_only_appear_for_saved_ipmi(client, stonith_project):
+    path = f'/projects/{stonith_project.id}/stonith/profiles'
+    assert b'Show manual command' not in client.get(path).data
+    assert client.post(path, data=profile_data(stonith_project)).status_code == 302
+    assert b'Show manual command' not in client.get(path).data
+    data = profile_data(stonith_project)
+    data.update(mode='ipmi', endpoint='')
+    for index in range(2):
+        data[f'profiles-{index}-controller_endpoint'] = f'192.0.2.{index+1}'
+        data[f'profiles-{index}-resource_name'] = f'fence-node0{index+1}'
+    assert client.post(path, data=data).status_code == 302
+    page = client.get(path)
+    assert b'Show manual command' in page.data and page.data.count(b'Copy command') == 2
+    assert b'--ip=192.0.2.1' in page.data and b'--ip=192.0.2.2' in page.data
+    assert b'not-a-real-secret' not in page.data

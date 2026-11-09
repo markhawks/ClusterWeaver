@@ -5,6 +5,7 @@ from flask_wtf import FlaskForm
 from wtforms import IntegerField, StringField, SubmitField
 from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
 
+from clusterweaver.core.validators.project import validate_gateway
 from clusterweaver.core.validators import validate_ip_address, validate_ipv4_cidr
 
 
@@ -62,13 +63,16 @@ class NodeForm(FlaskForm):
     def validate_management_gateway(self, field) -> None:
         if not self.management_ip.data or not field.data:
             return
+        # Invalid CIDR/IP syntax already has its own field validator.
         try:
-            network = validate_ipv4_cidr(self.management_ip.data.strip()).network
-            gateway = ip_address(field.data.strip())
+            validate_ipv4_cidr(self.management_ip.data.strip())
+            ip_address(field.data.strip())
         except ValueError:
             return
-        if gateway not in network:
-            raise ValidationError("Management gateway must belong to the management subnet.")
+        try:
+            validate_gateway(self.management_ip.data.strip(), field.data.strip())
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
 
     def validate_cluster_gateway(self, field) -> None:
         if not field.data:
@@ -76,9 +80,11 @@ class NodeForm(FlaskForm):
         if not self.cluster_ip.data:
             raise ValidationError("Configure the cluster/private IP and subnet before its gateway.")
         try:
-            network = validate_ipv4_cidr(self.cluster_ip.data.strip()).network
-            gateway = ip_address(field.data.strip())
+            validate_ipv4_cidr(self.cluster_ip.data.strip())
+            ip_address(field.data.strip())
         except ValueError:
             return
-        if gateway not in network:
-            raise ValidationError("Cluster/private gateway must belong to the cluster/private subnet.")
+        try:
+            validate_gateway(self.cluster_ip.data.strip(), field.data.strip(), 'Cluster/private')
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc

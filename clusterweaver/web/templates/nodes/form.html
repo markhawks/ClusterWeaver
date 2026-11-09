@@ -11,6 +11,8 @@
   <p class="text-secondary mb-1">{{ project.name }}</p><h1 class="h3 mb-4">{{ title }}</h1>
   {% if title == 'Add node' and project.rhel_major == 10 and project.platform_type == 'virtual' and project.hypervisor == 'kvm' %}<div class="alert alert-info">Suggested RHEL 10/KVM defaults: management network <code>192.168.124.0/24</code> via <code>192.168.124.1</code> on <code>enp1s0</code>; directly connected cluster/private network <code>192.168.200.0/24</code> with no gateway on <code>enp7s0</code>. Review them against the VM configuration before saving.</div>{% endif %}
   {% if title.startswith('Clone node') %}<div class="alert alert-info">Update hostname, cluster node name, FQDN, and IP addresses before saving. Duplicate values are not allowed in the same project.</div>{% endif %}
+  <div class="alert alert-info small">Gateway addresses must identify a router in the corresponding subnet, not a node IP, network or broadcast address. Checks run while editing and before saving. They do not prove that the router is reachable or matches the live configuration.</div>
+  <script type="application/json" id="gateway-node-inventory">[{% for node in project.nodes if node.id != editing_node_id|default(none) %}{{ dict(hostname=node.hostname, management_ip=node.management_ip, cluster_ip=node.cluster_ip, management_gateway=node.management_gateway, cluster_gateway=node.cluster_gateway)|tojson }}{% if not loop.last %},{% endif %}{% endfor %}]</script>
   <form method="post" novalidate>{{ form.hidden_tag() }}
     <div class="row"><div class="col-md-6">{{ render_field(form.fqdn) }}</div><div class="col-md-6">{{ render_field(form.hostname) }}</div></div>
     {{ render_field(form.nodename) }}
