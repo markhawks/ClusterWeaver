@@ -5,8 +5,10 @@ Updated: 2026-11-09 (Europe/Rome)
 ## Session closure: 0.1.14 (2026-11-09)
 
 - Checkout: `/root/ClusterWeaver-main`, branch `main`; version/tag: `0.1.14` / `v0.1.14`.
-- Release notes: `CHANGELOG.md`, dated `2026-11-09`. Final publication/deployment details are recorded below once complete.
-- Offline installation remains deprecated. Do not build or attach offline installation bundles; no binary release assets are planned.
+- Release notes: `CHANGELOG.md`, dated `2026-11-09`.
+- Published release commit: `cb38c33`; tag: `v0.1.14`; release: <https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.14>. Verified public, not draft/prerelease, with zero uploaded assets.
+- Local service aligned to 0.1.14 at `/opt/clusterweaver/app`: active, database current and login reachable. Final deployment database backup: `/var/lib/clusterweaver/backups/clusterweaver-20261109T170105Z-3785606.db`. No active cluster jobs existed before deployment.
+- Offline installation remains deprecated. Do not build or attach offline installation bundles; no binary release assets were uploaded.
 - Alembic head remains `0018_stonith_passwords`: no new migration is required by 0.1.14. Preserve the database, project SSH key directories and controller encryption-key directory in protected backups.
 - Added explicit network Skip (00c), recorded as skipped per node, preserving existing successful results and unlocking 01 after discovery/trust. No network commands run when skipping.
 - Node gateway validation now reports problems while editing and blocks invalid saves, clones and portable imports. It detects self/peer node addresses, existing router-IP collisions, out-of-subnet, network/broadcast and non-unicast values. /31 links remain supported. These checks do not establish actual router reachability or correctness of an otherwise valid address.
