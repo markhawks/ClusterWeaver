@@ -10,7 +10,7 @@
 
 Strumento per la creazione e la gestione del ciclo di vita dei cluster Linux High Availability.
 
-Versione corrente: **0.1.14** (9 novembre 2026). La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
+Versione corrente: **0.1.15** (11 novembre 2026). La cronologia dei rilasci è disponibile in [`CHANGELOG.md`](CHANGELOG.md) e dal collegamento Changelog dell’interfaccia web.
 
 ClusterWeaver è software libero distribuito con licenza [GNU Affero General Public License v3.0](LICENSE). Le versioni modificate offerte agli utenti attraverso una rete devono rendere disponibile il relativo codice sorgente con la stessa licenza. Per contribuire consulta [CONTRIBUTING.md](CONTRIBUTING.md) e [SECURITY.md](SECURITY.md).
 
@@ -20,16 +20,18 @@ I progetti possono essere assegnati a Project Group identificati da colore, con 
 
 Il workflow remoto è suddiviso in tre fasi richiudibili. **Pre-Cluster Configuration** (step 00–04) gestisce bootstrap e discovery SSH, configurazione e verifica della rete, `/etc/hosts` e controlli preliminari. Tutte e tre le operazioni dello Step 00 possono essere visualizzate, copiate e aperte a schermo intero; su RHEL 7.9 la rete viene esclusivamente verificata, rilevando NetworkManager o i legacy network-scripts senza apportare modifiche, mentre RHEL 9.8 e 10.2 conservano la configurazione protetta. **Cluster Base Installation and Configuration** installa e verifica i pacchetti Pacemaker (step 05), abilita `pcsd` e autentica i nodi (step 06), quindi crea il cluster con il nome configurato e verifica membership, `WaitForAll` e quorum (step 07). Ogni azione applica i propri prerequisiti e registra il risultato per ciascun nodo; lo Skip esplicito della configurazione rete rimane distinto da una verifica riuscita.
 
-**Cluster STONITH Configuration and Testing** (step 08a–08c) definisce profili OEM o singole iDRAC, crea i device fencing IPMI dopo i controlli e ne verifica la configurazione in sola lettura. Ogni macrogruppo mostra gli step inclusi e i contatori di completamento. Questa release non implementa test reali di alimentazione.
+**Cluster STONITH Configuration and Testing** (step 08a–08c) definisce profili OEM, singole iDRAC o associazioni VM VMware vCenter, crea i device fencing IPMI dopo i controlli e ne verifica la configurazione in sola lettura. Ogni macrogruppo mostra gli step inclusi e i contatori di completamento. Questa release non implementa test reali di alimentazione.
 
-## Novità della versione 0.1.14
+## Novità della versione 0.1.15
 
-- Skip esplicito della configurazione rete (00c) dopo discovery e scambio SSH, senza modifiche remote.
-- Validazione immediata dei gateway e blocco al salvataggio/importazione per collisioni con IP dei nodi, indirizzi fuori subnet o non utilizzabili.
-- Scelta tra profili OEM e singole iDRAC; nomi STONITH suggeriti dalle ultime due cifre dell’hostname, conservando quelli personalizzati.
-- Comandi IPMI manuali su una sola riga, interfaccia in inglese e data/ora degli ultimi controlli agenti.
-- Creazione device in background con 08b, anteprima, conferma, verifica dai nodi peer e protezione dei conflitti; verifica in sola lettura con 08c.
-- Installazione offline ancora deprecata, senza pubblicazione di bundle offline.
+- Step 08a VMware vCenter con scelta SOAP/REST; SOAP proposto per i nuovi progetti virtuali VMware e nomi VM suggeriti in maiuscolo, modificabili.
+- Verifica dello stato VM dai nodi cluster tramite SSH del progetto e controllo dell’agente selezionato su ogni nodo.
+- Comando CLI manuale copiabile per nodo con vCenter, utente e VM compilati e password come segnaposto.
+- Spunta **Use --ssl --ssl-insecure**; deselezionandola si verifica il certificato con `--ssl --ssl-secure`. Non viene aggiunto un parametro esplicito di porta.
+- Migrazioni fino a `0020_vmware_ssl`, che corregge l’opzione HTTP introdotta per errore. Password cifrate escluse da esportazioni e Git applicativo.
+- Per i test grafici serve l’accesso SSH da ClusterWeaver ai nodi, installato/verificato in **00k**. Lo scambio **00b** riguarda invece l’accesso tra nodi.
+- Gli step 08b/08c restano limitati a iDRAC/IPMI; creazione fencing VMware e test reali di alimentazione sono ancora da implementare.
+- Installazione offline deprecata: nessun bundle offline pubblicato.
 
 ## Requisiti di sviluppo
 

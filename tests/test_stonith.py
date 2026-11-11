@@ -203,7 +203,7 @@ def test_stonith_database_migration(tmp_path):
     assert result.returncode == 0, result.stderr
     import sqlite3
     with sqlite3.connect(tmp_path / "migrated.db") as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0018_stonith_passwords"
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0020_vmware_ssl"
         assert "password" not in {row[1] for row in connection.execute("PRAGMA table_info(stonith_profiles)")}
     result = subprocess.run([str(executable), "-m", "alembic", "downgrade", "0014_user_password_change"], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -360,7 +360,8 @@ def test_ipmi_finds_standard_sbin_agent_without_path(monkeypatch):
     assert calls == [['/usr/sbin/fence_ipmilan']]
 
 
-def test_ipmi_verification_runs_each_controller_on_its_cluster_node(monkeypatch):
+@pytest.mark.parametrize("mode", ["ipmi", "vmware_soap", "vmware_rest"])
+def test_ipmi_verification_runs_each_controller_on_its_cluster_node(monkeypatch, mode):
     import json
     from io import StringIO
     from clusterweaver.core.services import ssh_bootstrap
@@ -383,13 +384,20 @@ def test_ipmi_verification_runs_each_controller_on_its_cluster_node(monkeypatch)
         return SimpleNamespace(exec_command=execute, close=lambda: closed.append(node.hostname)), 'SHA256:example'
     monkeypatch.setattr(ssh_bootstrap, '_connect', connect)
     monkeypatch.setattr(ssh_bootstrap, '_collect_channel', lambda channel, timeout: (0, 'Status: ON\ncontroller-secret-1 controller-secret-2 ssh-secret'))
-    results = verify_ipmi_profiles_on_nodes(nodes, SSHCredentials(password='ssh-secret'), profiles)
+    if mode == 'ipmi':
+        results = verify_ipmi_profiles_on_nodes(nodes, SSHCredentials(password='ssh-secret'), profiles)
+    else:
+        from clusterweaver.core.services.stonith import verify_vmware_profiles_on_nodes
+        profiles = [dict(p, profile_name=p['hostname']) for p in profiles]
+        results = verify_vmware_profiles_on_nodes(nodes, SSHCredentials(password='ssh-secret'), profiles, 'vcenter.example.test', mode)
     assert len(results) == 2 and all(r.ok for r in results)
     assert sorted(closed) == ['node01', 'node02']
     for name, stream in calls:
         payload = json.loads(stream.getvalue())
         assert payload['hostname'] == name
-        assert payload['controller_endpoint'] == ('192.0.2.1' if name == 'node01' else '192.0.2.2')
+        assert payload['controller_endpoint'] == (('192.0.2.1' if name == 'node01' else '192.0.2.2') if mode == 'ipmi' else 'vcenter.example.test')
+        if mode != 'ipmi':
+            assert payload['mode'] == mode and payload['profile_name'] == name
         assert payload['password'] == ('controller-secret-1' if name == 'node01' else 'controller-secret-2')
     assert all('secret' not in r.output and 'via SSH' in r.output for r in results)
     assert all(not r.ok and 'SSH key' in r.output for r in verify_ipmi_profiles_on_nodes(nodes, None, profiles))
@@ -439,7 +447,7 @@ def test_fencing_method_is_explicit_and_preserves_saved_oem_selection(client, st
     page = client.get(path)
     parser = RadioParser()
     parser.feed(page.data.decode())
-    assert parser.modes == ['ipmi', 'oem']
+    assert parser.modes == ['ipmi', 'oem', 'vmware_soap', 'vmware_rest']
     assert parser.selected == ['ipmi']
     assert b'Single iDRAC per node / IPMI' in page.data
     assert b'DELL OEM profiles' in page.data
@@ -482,3 +490,144 @@ def test_manual_command_controls_only_appear_for_saved_ipmi(client, stonith_proj
     assert b'Show manual command' in page.data and page.data.count(b'Copy command') == 2
     assert b'--ip=192.0.2.1' in page.data and b'--ip=192.0.2.2' in page.data
     assert b'not-a-real-secret' not in page.data
+
+
+def test_vmware_defaults_save_and_verification(client, stonith_project, monkeypatch, app):
+    project = stonith_project
+    project.platform_type, project.hypervisor = 'virtual', 'vmware'
+    db.session.commit()
+    path = f'/projects/{project.id}/stonith/profiles'
+    page = client.get(path)
+    import re
+    assert re.search(rb'<input[^>]*checked[^>]*value="vmware_soap"', page.data)
+    assert b'name="profiles-0-profile_name" type="text" value="NODE01"' in page.data
+    data = profile_data(project)
+    data.update(hardware='vmware', mode='vmware_soap', endpoint='vcenter.example.test')
+    for i, node in enumerate(project.nodes):
+        data[f'profiles-{i}-profile_name'] = node.hostname
+    assert client.post(path, data=data).status_code == 302
+    config = project.stonith_configuration
+    assert (config.hardware, config.mode, config.endpoint) == ('vmware', 'vmware_soap', 'vcenter.example.test')
+    assert all(p.password_encrypted for p in config.profiles)
+    page = client.get(path)
+    assert b'not-a-real-secret' not in page.data
+    assert b'fence_vmware_soap' in page.data
+    captured = []
+    def verify(nodes, credentials, profiles, endpoint, mode, transport):
+        captured.append((endpoint, mode, profiles))
+        return [SimpleNamespace(hostname=p['hostname'], endpoint=endpoint, ok=True, output='Status: ON', fingerprint='') for p in profiles]
+    monkeypatch.setattr('clusterweaver.web.routes.stonith.verify_vmware_profiles_on_nodes', verify)
+    data.pop('save')
+    data['verify'] = 'y'
+    for i in range(len(project.nodes)):
+        data[f'profiles-{i}-password'] = ''
+    assert b'VMware vCenter verification' in client.post(path, data=data).data
+    assert captured[0][0:2] == ('vcenter.example.test', 'vmware_soap')
+    assert all(p['password'] == 'not-a-real-secret' for p in captured[0][2])
+    exported = client.get(f'/projects/{project.id}/export.cwp')
+    imported = client.post('/projects/import', data={'archive': (BytesIO(exported.data), 'vmware.cwp')}, content_type='multipart/form-data')
+    assert imported.status_code == 302
+    configs = db.session.query(StonithConfigurationRecord).all()
+    assert all(c.hardware == 'vmware' for c in configs)
+    assert not configs[-1].profiles[0].password_encrypted
+
+
+def test_vmware_agent_status_is_readonly_and_uses_stdin(monkeypatch):
+    from clusterweaver.core.services import vmware_fencing
+    from clusterweaver.core.services.fence_agents import generate_agent_check_script
+    from clusterweaver.core.services.stonith import generate_vmware_verification_script
+    monkeypatch.setattr(vmware_fencing.shutil, 'which', lambda name: '/usr/sbin/' + name)
+    calls = []
+    def run(args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(returncode=0, stdout='Status: ON', stderr='')
+    monkeypatch.setattr(vmware_fencing.subprocess, 'run', run)
+    for mode in ('vmware_soap', 'vmware_rest'):
+        profile = dict(hostname='node01', controller_endpoint='vcenter.example.test', profile_name='VM example', username='reader@example.test', password='example-secret', mode=mode)
+        assert 'PASS' in vmware_fencing.inspect_vmware(profile, time.monotonic() + 20)
+        args, kwargs = calls[-1]
+        assert args == ['/usr/sbin/fence_' + mode]
+        assert 'action=status\n' in kwargs['input'] and 'ssl_secure=1' in kwargs['input']
+        assert 'passwd=example-secret' in kwargs['input']
+        assert kwargs['timeout'] <= 20
+        assert 'required=fence_' + mode in generate_agent_check_script(mode)
+        script = generate_vmware_verification_script('vcenter.example.test', [profile], mode)
+        compile(script, '<vmware-script>', 'exec')
+        assert 'example-secret' not in script
+    monkeypatch.setattr(vmware_fencing.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout='example-secret', stderr='TLS failure'))
+    with pytest.raises(ValueError) as exc:
+        vmware_fencing.inspect_vmware(profile, time.monotonic() + 20)
+    assert 'example-secret' not in str(exc.value)
+
+
+@pytest.mark.parametrize('mode', ['vmware_soap', 'vmware_rest'])
+def test_vmware_manual_cli_matches_status_parameters(client, stonith_project, mode, tmp_path):
+    import shlex
+    from clusterweaver.core.services.stonith import generate_vmware_manual_command
+    marker = tmp_path / 'unexpected-shell-execution'
+    profile = dict(username='reader@example.test', profile_name=f'VM $(touch {marker})', password='never-render-this-password')
+    command = generate_vmware_manual_command('vcenter.example.test', profile, mode)
+    assert shlex.split(command) == [
+        'timeout', '20s', '/usr/sbin/fence_' + mode, '--ip=vcenter.example.test',
+        '--username=reader@example.test', '--password=YOUR_VCENTER_PASSWORD',
+        '--plug=' + profile['profile_name'], '--ssl', '--ssl-secure',
+        '--login-timeout=10', '--shell-timeout=10', '--action=status',
+    ]
+    result = subprocess.run(['bash', '-c', command.replace('timeout 20s /usr/sbin/fence_' + mode, "printf '%s\\n'", 1)], text=True, capture_output=True)
+    assert result.returncode == 0 and not marker.exists()
+    assert profile['password'] not in command
+    with pytest.raises(ValueError):
+        generate_vmware_manual_command('vcenter.example.test', dict(profile, profile_name='VM\naction=off'), mode)
+    data = profile_data(stonith_project)
+    data.update(hardware='vmware', mode=mode, endpoint='vcenter.example.test')
+    path = f'/projects/{stonith_project.id}/stonith/profiles'
+    assert client.post(path, data=data).status_code == 302
+    page = client.get(path)
+    assert b'Show manual command' in page.data and page.data.count(b'Copy command') == 2
+    assert ('/usr/sbin/fence_' + mode).encode() in page.data
+    assert b'YOUR_VCENTER_PASSWORD' in page.data and b'not-a-real-secret' not in page.data
+    assert b'--action=status' in page.data
+
+
+@pytest.mark.parametrize('transport,insecure,flags', [
+    ('https_secure', False, ['--ssl', '--ssl-secure']),
+    ('https_insecure', True, ['--ssl', '--ssl-insecure']),
+])
+def test_vmware_transport_saved_and_applied_to_cli_and_node_check(client, stonith_project, monkeypatch, transport, insecure, flags):
+    import shlex
+    from clusterweaver.core.services import vmware_fencing
+    from clusterweaver.core.services.stonith import generate_vmware_manual_command
+    data = profile_data(stonith_project)
+    data.update(hardware='vmware', mode='vmware_soap', endpoint='vcenter.example.test')
+    if insecure:
+        data['vmware_ssl_insecure'] = 'y'
+    path = f'/projects/{stonith_project.id}/stonith/profiles'
+    assert client.post(path, data=data).status_code == 302
+    assert stonith_project.stonith_configuration.vmware_transport == transport
+    page = client.get(path)
+    assert b'Use --ssl --ssl-insecure' in page.data
+    assert b'--ipport=' not in page.data
+    assert b'not-a-real-secret' not in page.data
+    profile = dict(hostname='node01', username='reader', password='example-secret', profile_name='NODE01', controller_endpoint='vcenter.example.test', mode='vmware_soap', vmware_transport=transport)
+    args = shlex.split(generate_vmware_manual_command('vcenter.example.test', profile, 'vmware_soap', transport))
+    assert not any(a.startswith('--ipport=') for a in args)
+    assert [a for a in args if a.startswith('--ssl')] == flags
+    monkeypatch.setattr(vmware_fencing.shutil, 'which', lambda name: '/usr/sbin/' + name)
+    calls = []
+    def run(args, **kwargs):
+        calls.append(kwargs['input'])
+        return SimpleNamespace(returncode=0, stdout='Status: ON', stderr='')
+    monkeypatch.setattr(vmware_fencing.subprocess, 'run', run)
+    assert 'PASS' in vmware_fencing.inspect_vmware(profile, time.monotonic() + 20)
+    assert 'ipport=' not in calls[0]
+    assert ('ssl_insecure=1\n' in calls[0]) == (transport == 'https_insecure')
+    assert ('ssl_secure=1\n' in calls[0]) == (transport == 'https_secure')
+    assert 'ssl=1\n' in calls[0]
+    assert 'action=status\n' in calls[0]
+    monkeypatch.undo()
+    # Changing only transport keeps controller credentials.
+    other = dict(data, vmware_ssl_insecure='y')
+    for i in range(len(stonith_project.nodes)):
+        other[f'profiles-{i}-password'] = ''
+    assert client.post(path, data=other).status_code == 302
+    assert all(p.password_encrypted for p in stonith_project.stonith_configuration.profiles)

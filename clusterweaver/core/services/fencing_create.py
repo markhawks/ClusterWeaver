@@ -27,7 +27,7 @@ def default_resource_name(hostname):
 
 def creation_profiles(project):
     if not project.stonith or project.stonith['mode'] != 'ipmi':
-        raise ValueError('Step 08b currently supports direct iDRAC/IPMI only; no OEM fencing agent is selected.')
+        raise ValueError('Step 08b currently supports direct iDRAC/IPMI only; OEM and VMware device creation are not implemented yet.')
     nodes = {node.hostname:node for node in project.nodes}
     expected_nodes(project)
     if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,252}', n.nodename) for n in project.nodes):

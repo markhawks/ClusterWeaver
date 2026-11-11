@@ -10,9 +10,9 @@ INSTALL_ALL_COMMAND = "dnf install fence-agents-all"
 
 
 def generate_agent_check_script(mode):
-    if mode not in {"oem", "ipmi"}:
+    if mode not in {"oem", "ipmi", "vmware_soap", "vmware_rest"}:
         raise ValueError("Unsupported STONITH mode.")
-    required = "fence_ipmilan" if mode == "ipmi" else ""
+    required = "fence_" + mode if mode.startswith("vmware_") else ("fence_ipmilan" if mode == "ipmi" else "")
     return """#!/usr/bin/env bash
 set -uo pipefail
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin

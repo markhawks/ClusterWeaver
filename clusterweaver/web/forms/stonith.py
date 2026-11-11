@@ -8,7 +8,7 @@ from clusterweaver.core.services.stonith import validate_oem_endpoint
 class DellProfileForm(Form):
     node_id = HiddenField(validators=[DataRequired()])
     hostname = StringField("Hostname", validators=[DataRequired(), Length(max=253)], render_kw={"readonly": True})
-    profile_name = StringField("DELL profile name in OEM", validators=[Optional(), Length(max=160)])
+    profile_name = StringField("OEM profile / vCenter VM name", validators=[Optional(), Length(max=160)])
     controller_endpoint = StringField("iDRAC IP address or hostname", validators=[Optional(), Length(max=253)])
     resource_name = StringField("STONITH resource name", validators=[Optional(), Length(max=160)])
     username = StringField("Userid", validators=[DataRequired(), Length(max=128)])
@@ -16,15 +16,16 @@ class DellProfileForm(Form):
 
 
 class StonithProfilesForm(FlaskForm):
-    hardware = SelectField("Hardware", choices=[("dell", "DELL")], default="dell", validators=[DataRequired()])
-    mode = RadioField("Fencing connection", choices=[("ipmi", "Single iDRAC per node / IPMI"), ("oem", "DELL OEM profiles")], default="ipmi", validators=[DataRequired()])
-    endpoint = StringField("OEM IP address or hostname", validators=[Length(max=253)], render_kw={"placeholder": "e.g. 10.0.0.50 or ome.example.com"})
+    hardware = SelectField("Hardware", choices=[("dell", "DELL"), ("vmware", "VMware vCenter")], default="dell", validators=[DataRequired()])
+    mode = RadioField("Fencing connection", choices=[("ipmi", "Single iDRAC per node / IPMI"), ("oem", "DELL OEM profiles"), ("vmware_soap", "vCenter profiles / fence_vmware_soap"), ("vmware_rest", "vCenter profiles / fence_vmware_rest")], default="ipmi", validators=[DataRequired()])
+    endpoint = StringField("OEM / vCenter IP address or hostname", validators=[Length(max=253)], render_kw={"placeholder": "e.g. 10.0.0.50 or ome.example.com"})
+    vmware_ssl_insecure = BooleanField("Use --ssl --ssl-insecure", default=True)
     profiles = FieldList(FormField(DellProfileForm), min_entries=0, max_entries=64)
     save = SubmitField("Save profiles")
     verify = SubmitField("Save and verify OEM profiles")
 
     def validate_endpoint(self, field) -> None:
-        if self.mode.data != "oem":
+        if self.mode.data == "ipmi":
             return
         try:
             validate_oem_endpoint((field.data or "").strip())

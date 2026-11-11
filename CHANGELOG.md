@@ -6,6 +6,26 @@ The format follows Keep a Changelog principles. ClusterWeaver uses semantic vers
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-11-11
+
+### Added
+
+- Step 08a supports VMware vCenter VM mappings with selectable fence_vmware_soap and fence_vmware_rest agents. New virtual VMware projects default to SOAP and propose editable uppercase VM names; existing definitions are preserved.
+- VMware VM status runs via project SSH on the associated cluster nodes, with encrypted saved credentials, a 20-second per-node timeout and a shared 45-second budget. The agent inventory checks the selected VMware executable and metadata on every node.
+- Saved VMware profiles expose copyable single-line CLI status commands with vCenter, userid and VM name prefilled, a password placeholder and the same SSL settings as the web verification. Standalone verification scripts remain available.
+- A Use --ssl --ssl-insecure checkbox selects the requested SSL flags; clearing it enables certificate verification with --ssl --ssl-secure. No explicit port argument is generated. The choice is saved and included in portable public definitions.
+
+### Fixed
+
+- Removed the mistakenly introduced HTTP/80 option. Migration 0020 corrects affected VMware profiles and invalidates their previous checks. Migration 0019 adds persistent SSL settings; earlier verified-SSL configurations remain unchanged.
+- VMware portable imports preserve hardware, selected agent and SSL settings, while excluding stored passwords and prior verification results.
+
+### Operational notes
+
+- Step 00b establishes node-to-node SSH trust; step 00k separately installs/verifies the server-owned project SSH key needed for graphical VMware checks. No VMware command runs when SSH credentials are unavailable.
+- VMware resource creation and configuration verification in 08b/08c remain unavailable; these steps currently support direct iDRAC/IPMI only. No power tests are implemented or performed by 08a.
+- Offline installation remains deprecated; no offline installation bundles or binary assets are attached to this release.
+
 ## [0.1.14] - 2026-11-09
 
 ### Added

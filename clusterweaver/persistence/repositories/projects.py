@@ -32,6 +32,7 @@ def to_domain(record: ProjectRecord) -> ProjectData:
             "hardware": record.stonith_configuration.hardware,
             "mode": record.stonith_configuration.mode,
             "endpoint": record.stonith_configuration.endpoint,
+            "vmware_transport": record.stonith_configuration.vmware_transport,
             "profiles": [
                 {"hostname": profile.node.hostname, "profile_name": profile.profile_name, "username": profile.username, "controller_endpoint": profile.controller_endpoint, "resource_name": profile.resource_name}
                 for profile in sorted(record.stonith_configuration.profiles, key=lambda item: item.node.hostname.lower())

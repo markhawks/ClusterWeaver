@@ -99,7 +99,7 @@ except ValueError as exc:
 '''
 
 
-def verify_ipmi_profiles_on_nodes(nodes, credentials, profiles, budget=45):
+def verify_ipmi_profiles_on_nodes(nodes, credentials, profiles, budget=45, *, remote_program=None):
     """Each node checks its associated controller; no agent runs on the web host."""
     from concurrent.futures import ThreadPoolExecutor, wait
     import shlex
@@ -107,7 +107,7 @@ def verify_ipmi_profiles_on_nodes(nodes, credentials, profiles, budget=45):
     from clusterweaver.core.services.ssh_credentials import redact_output
     nodes_by_name = {node.hostname: node for node in nodes}
     deadline = time.monotonic() + min(45, max(0, budget))
-    command = 'python3 -c ' + shlex.quote(remote_ipmi_program())
+    command = 'python3 -c ' + shlex.quote(remote_program if remote_program is not None else remote_ipmi_program())
 
     def check(profile):
         fingerprint = ''
@@ -173,4 +173,56 @@ def generate_ipmi_manual_command(profile):
         shlex.quote('--username=' + profile['username']),
         "--password='YOUR_IDRAC_PASSWORD'",
         '--lanplus', '--action=status', '--method=onoff',
+    ])
+
+
+def verify_vmware_profiles_on_nodes(nodes, credentials, profiles, endpoint, mode, transport="https_secure"):
+    from clusterweaver.core.services.vmware_fencing import remote_program
+    inputs = [dict(profile, controller_endpoint=endpoint, mode=mode, vmware_transport=transport) for profile in profiles]
+    results = verify_ipmi_profiles_on_nodes(nodes, credentials, inputs, remote_program=remote_program())
+    for result in results:
+        result.output = result.output.replace("IPMI", "VMware").replace("iDRAC", "vCenter VM")
+    return results
+
+
+def generate_vmware_verification_script(endpoint, profiles, mode, transport="https_secure"):
+    source = Path(__file__).with_name('vmware_fencing.py').read_text(encoding='utf-8')
+    public = [dict(hostname=p['hostname'], profile_name=p['profile_name'], username=p['username'], controller_endpoint=endpoint, mode=mode, vmware_transport=transport) for p in profiles]
+    return source + "\nimport getpass\n" + f"PROFILES = {public!r}\n" + """
+failed = False
+for profile in PROFILES:
+    profile['password'] = getpass.getpass('vCenter password for ' + profile['hostname'] + ': ')
+deadline = time.monotonic() + 45
+for profile in PROFILES:
+    try:
+        print(inspect_vmware(profile, deadline))
+    except ValueError as exc:
+        print('FAIL: ' + str(exc))
+        failed = True
+raise SystemExit(1 if failed else 0)
+"""
+
+
+def generate_vmware_manual_command(endpoint, profile, mode, transport="https_secure"):
+    """Equivalent CLI status check; public configuration only, shell-quoted."""
+    import shlex
+    if mode not in {'vmware_soap', 'vmware_rest'}:
+        raise ValueError('Unsupported VMware fence agent.')
+    validate_oem_endpoint(endpoint)
+    for key in ('username', 'profile_name'):
+        if not profile.get(key) or any(c in profile[key] for c in '\r\n\x00'):
+            raise ValueError('VM name and userid must be present without newlines or NUL characters.')
+    if transport == 'http':
+        transport = 'https_insecure'
+    if transport not in {'https_secure', 'https_insecure'}:
+        raise ValueError('Unsupported VMware connection transport.')
+    tls_args = ['--ssl', '--ssl-insecure'] if transport == 'https_insecure' else ['--ssl', '--ssl-secure']
+    return ' '.join([
+        'timeout 20s', '/usr/sbin/fence_' + mode,
+        shlex.quote('--ip=' + endpoint),
+        shlex.quote('--username=' + profile['username']),
+        "--password='YOUR_VCENTER_PASSWORD'",
+        shlex.quote('--plug=' + profile['profile_name']),
+        *tls_args, '--login-timeout=10',
+        '--shell-timeout=10', '--action=status',
     ])

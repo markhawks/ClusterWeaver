@@ -87,6 +87,7 @@ class StonithConfigurationRecord(Base):
     hardware: Mapped[str] = mapped_column(String(20), default="dell")
     mode: Mapped[str] = mapped_column(String(20), default="oem")
     endpoint: Mapped[str] = mapped_column(String(253))
+    vmware_transport: Mapped[str] = mapped_column(String(20), default="https_secure", server_default="https_secure")
     project: Mapped[ProjectRecord] = relationship(back_populates="stonith_configuration")
     profiles: Mapped[list["StonithProfileRecord"]] = relationship(
         back_populates="configuration", cascade="all, delete-orphan"

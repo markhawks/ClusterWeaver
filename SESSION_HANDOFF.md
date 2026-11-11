@@ -1,6 +1,23 @@
 # ClusterWeaver session handoff
 
-Updated: 2026-11-09 (Europe/Rome)
+Updated: 2026-11-11 (Europe/Rome)
+
+## Session closure: 0.1.15 (2026-11-11)
+
+- Checkout: `/root/ClusterWeaver-main`, branch `main`; version/tag: `0.1.15` / `v0.1.15`.
+- Release notes: `CHANGELOG.md`, dated `2026-11-11`; GitHub release URL: <https://github.com/markhawks/ClusterWeaver/releases/tag/v0.1.15>.
+- Validation: 161 tests passed; JavaScript, updater shell syntax and Git whitespace checks passed. Existing WTForms tuple-choice deprecation warnings remain. Real-node/controller references from this session were checked and are absent from release files.
+- Local service aligned to 0.1.15 at `/opt/clusterweaver/app`: active, database current and login reachable. No active cluster operations existed before deployment. Protected database backup: `/var/lib/clusterweaver/backups/clusterweaver-20261111T164945Z-1263735.db`.
+- Added 08a VMware vCenter mappings, selectable SOAP/REST, default SOAP for new virtual VMware projects and editable uppercase VM names. Existing saved definitions remain unchanged.
+- VMware status executes on cluster nodes through existing project SSH, using encrypted saved controller credentials. The selected VMware agent must exist and return metadata on every node. No agent runs on the web server.
+- Saved mappings expose public single-line CLI status commands and full standalone verification scripts. Passwords remain placeholders/prompts, never embedded in displayed scripts, project YAML, exports or application Git. Web status uses SSH stdin, not password argv.
+- The final SSL control is **Use --ssl --ssl-insecure**. Checked uses exactly these flags; unchecked uses --ssl --ssl-secure. No explicit --ipport argument is generated. Do not reintroduce an HTTP/80 option in response to the user's SSL requirement.
+- Alembic head: `0020_vmware_ssl`. Migration 0019 adds the persisted SSL choice; 0020 corrects previously saved HTTP mappings and invalidates their old checks. Preserve the database, project SSH keys and controller encryption key in protected backups.
+- Operational blocker observed on the current VMware project: no active server-owned project SSH credential and no successful 00k verification. Step 00a discovery and 00b node-to-node trust had passed. A read-only attempt with the server root identity was refused by both nodes (Permission denied). VMware agent/vCenter execution was not reached; no successful end-to-end VMware check is claimed.
+- Resume by installing/verifying server-to-node project SSH access in the existing 00k UI with current root credentials, then repeat 08a agent and VM status checks. The saved VMware userid may still be a placeholder; review it in the UI. Do not put live inventory or credentials in this file or source control.
+- No keys were created/copied/deleted during this VMware diagnosis. The earlier bootstrap-identity decision remains unresolved: 00b generates distinct node-owned Ed25519 keys; the server root identity and service-owned project identity are separate. Do not copy node private keys or delete working identities.
+- VMware creation/verification in 08b/08c remains unimplemented; direct iDRAC/IPMI behavior is preserved. Real power/fencing tests remain future work and were not performed in this session.
+- Offline installation remains deprecated; no offline installation archives or binary release assets are prepared.
 
 ## Session closure: 0.1.14 (2026-11-09)
 

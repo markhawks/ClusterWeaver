@@ -52,6 +52,7 @@ def project_to_dict(project: ProjectData) -> dict:
             "hardware": project.stonith["hardware"],
             "mode": project.stonith.get("mode", "oem"),
             "endpoint": project.stonith["endpoint"],
+            "vmware_transport": project.stonith.get("vmware_transport", "https_secure"),
             "profiles": [
                 {key: profile.get(key, "") for key in ("hostname", "profile_name", "username", "controller_endpoint", "resource_name")}
                 for profile in project.stonith["profiles"]

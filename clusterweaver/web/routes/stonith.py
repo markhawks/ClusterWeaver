@@ -1,7 +1,7 @@
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for, jsonify
 from sqlalchemy import delete
 
-from clusterweaver.core.services.stonith import generate_oem_verification_script, verify_oem_profiles, generate_ipmi_verification_script, verify_ipmi_profiles_on_nodes, generate_ipmi_manual_command
+from clusterweaver.core.services.stonith import generate_oem_verification_script, verify_oem_profiles, generate_ipmi_verification_script, verify_ipmi_profiles_on_nodes, generate_ipmi_manual_command, verify_vmware_profiles_on_nodes, generate_vmware_verification_script, generate_vmware_manual_command
 from clusterweaver.core.services.dell_ipmi import validate_ipmi_definition
 from clusterweaver.core.services.fence_agents import check_cluster_agents, generate_agent_check_script, INSTALL_ALL_COMMAND
 from clusterweaver.persistence import db
@@ -30,13 +30,15 @@ def profiles(project_id):
     configuration = record.stonith_configuration
     form = StonithProfilesForm()
     if request.method == "GET":
-        form.mode.data = configuration.mode if configuration else "ipmi"
+        form.mode.data = configuration.mode if configuration else ("vmware_soap" if project.platform_type == "virtual" and project.hypervisor == "vmware" else "ipmi")
+        form.hardware.data = configuration.hardware if configuration else ("vmware" if form.mode.data.startswith("vmware_") else "dell")
+        form.vmware_ssl_insecure.data = not configuration or configuration.vmware_transport in {"https_insecure", "http"}
         form.endpoint.data = configuration.endpoint if configuration else ""
         saved = {profile.node_id: profile for profile in configuration.profiles} if configuration else {}
         for node in project.nodes:
             profile = saved.get(node.id)
             form.profiles.append_entry(dict(node_id=str(node.id), hostname=node.hostname,
-                profile_name=profile.profile_name if profile else "", username=profile.username if profile else "",
+                profile_name=profile.profile_name if profile else (node.hostname.upper() if form.mode.data.startswith("vmware_") else ""), username=profile.username if profile else "",
                 controller_endpoint=profile.controller_endpoint if profile else "", resource_name=profile.resource_name if profile and profile.resource_name else default_resource_name(node.hostname)))
     if request.method == "POST" and g.current_user.role not in {"administrator", "clusteradmin"}:
         abort(403)
@@ -45,8 +47,15 @@ def profiles(project_id):
         posted_ids = [entry.form.node_id.data for entry in form.profiles]
         valid = bool(nodes) and len(posted_ids) == len(nodes) and set(posted_ids) == set(nodes)
         if not valid:
-            flash("Provide exactly one DELL profile for every current project node. Reload the form if the inventory changed.", "danger")
+            flash("Provide exactly one fencing profile for every current project node. Reload the form if the inventory changed.", "danger")
         ipmi = form.mode.data == "ipmi"
+        vmware = form.mode.data.startswith("vmware_")
+        if form.hardware.data != ("vmware" if vmware else "dell"):
+            form.hardware.errors.append("Choose VMware hardware for vCenter agents, or DELL for OEM/IPMI.")
+            valid = False
+        transport = "https_insecure" if form.vmware_ssl_insecure.data else "https_secure"
+        if not vmware:
+            transport = "https_secure"
         saved_profiles = {profile.node_id: profile for profile in configuration.profiles} if configuration else {}
         passwords = {}
         seen_profiles = set()
@@ -73,14 +82,17 @@ def profiles(project_id):
                 controllers.add(controller.casefold())
             username = entry.form.username.data.strip()
             if not name or name.casefold() in seen_profiles:
-                (entry.form.resource_name if ipmi else entry.form.profile_name).errors.append("Enter a unique DELL profile or STONITH resource name for each node.")
+                (entry.form.resource_name if ipmi else entry.form.profile_name).errors.append("Enter a unique DELL profile, VMware VM or STONITH resource name for each node.")
                 valid = False
             seen_profiles.add(name.casefold())
             if not username or ":" in username:
                 entry.form.username.errors.append("Enter a userid without ':'.")
                 valid = False
-            if ipmi and any(c in (entry.form.password.data or "") + username for c in "\r\n\x00"):
+            if (ipmi or vmware) and any(c in (entry.form.password.data or "") + username for c in "\r\n\x00"):
                 entry.form.password.errors.append("Credentials cannot contain newlines or NUL characters.")
+                valid = False
+            if vmware and any(c in name for c in "\r\n\x00"):
+                entry.form.profile_name.errors.append("VM identifiers cannot contain newlines or NUL characters.")
                 valid = False
             saved_profile = saved_profiles.get(node.id)
             same_identity = bool(configuration and saved_profile and configuration.mode == form.mode.data
@@ -103,7 +115,7 @@ def profiles(project_id):
                     valid = False
             passwords[node.id] = (password, encrypted, same_identity)
             if form.verify.data and not password:
-                entry.form.password.errors.append("Enter the iDRAC password to verify this node." if ipmi else "Enter the OEM password to verify this profile.")
+                entry.form.password.errors.append("Enter the iDRAC password to verify this node." if ipmi else ("Enter the vCenter password to verify this VM." if vmware else "Enter the OEM password to verify this profile."))
                 valid = False
         if valid:
             if configuration is None:
@@ -111,6 +123,8 @@ def profiles(project_id):
                 db.session.add(configuration)
             endpoint = "" if ipmi else (form.endpoint.data or "").strip()
             changed = configuration.endpoint != endpoint or configuration.mode != form.mode.data
+            changed = changed or configuration.vmware_transport != transport
+            configuration.vmware_transport = transport
             configuration.mode = form.mode.data
             configuration.endpoint = endpoint
             configuration.hardware = form.hardware.data
@@ -140,25 +154,25 @@ def profiles(project_id):
                 db.session.execute(delete(StepExecutionRecord).where(StepExecutionRecord.project_id == project_id, StepExecutionRecord.step.in_(["08a", "08a-fa", "08b", "08c"])))
             record.updated_at = utcnow()
             db.session.commit()
-            persist_files(project_id, f"Define DELL STONITH profiles for {record.name}")
+            persist_files(project_id, f"Define STONITH profiles for {record.name}")
             if form.verify.data:
                 inputs = [dict(hostname=entry.form.hostname.data, profile_name=(entry.form.profile_name.data or "").strip(),
                                controller_endpoint=(entry.form.controller_endpoint.data or "").strip(), resource_name=(entry.form.resource_name.data or "").strip(),
                                username=entry.form.username.data.strip(), password=passwords[int(entry.form.node_id.data)][0])
                           for entry in form.profiles]
-                results = verify_ipmi_profiles_on_nodes(project.nodes, project_credentials(project), inputs) if ipmi else verify_oem_profiles(configuration.endpoint, inputs, current_app.config.get("OEM_CA_FILE") or None)
+                results = verify_vmware_profiles_on_nodes(project.nodes, project_credentials(project), inputs, configuration.endpoint, configuration.mode, configuration.vmware_transport) if vmware else (verify_ipmi_profiles_on_nodes(project.nodes, project_credentials(project), inputs) if ipmi else verify_oem_profiles(configuration.endpoint, inputs, current_app.config.get("OEM_CA_FILE") or None))
                 repository().save_step_results(project_id, "08a", results)
                 db.session.commit()
                 return render_template("projects/ssh_results.html", project=project_or_404(project_id), results=results,
-                    title="08a · DELL iDRAC IPMI verification" if ipmi else "08a · DELL OEM profile verification", changed=False,
-                    operation_description="Read-only IPMI status executed via SSH on each cluster node against its associated iDRAC; no power action or resource creation." if ipmi else "Read-only HTTPS checks from the ClusterWeaver server. No fencing resource was created and no power action was performed.")
-            flash("DELL iDRAC profiles saved. Passwords are stored encrypted; a blank field keeps the saved password for unchanged credentials." if ipmi else "DELL OEM profiles saved. Passwords are stored encrypted; a blank field keeps the saved password for unchanged credentials.", "success")
+                    title="08a · VMware vCenter verification" if vmware else "08a · DELL iDRAC IPMI verification" if ipmi else "08a · DELL OEM profile verification", changed=False,
+                    operation_description="Read-only vCenter VM status from cluster nodes via SSH; no power action or resource creation." if vmware else "Read-only IPMI status executed via SSH on each cluster node against its associated iDRAC; no power action or resource creation." if ipmi else "Read-only HTTPS checks from the ClusterWeaver server. No fencing resource was created and no power action was performed.")
+            flash("VMware vCenter profiles saved. Passwords are stored encrypted." if vmware else "DELL iDRAC profiles saved. Passwords are stored encrypted; a blank field keeps the saved password for unchanged credentials." if ipmi else "DELL OEM profiles saved. Passwords are stored encrypted; a blank field keeps the saved password for unchanged credentials.", "success")
             return redirect(url_for("projects.detail", project_id=project_id))
     saved_definitions = definitions(configuration)
     response = current_app.make_response(render_template("projects/stonith_profiles.html", project=project, form=form,
-        manual_ipmi_commands=[dict(hostname=profile["hostname"], command=generate_ipmi_manual_command(profile)) for profile in saved_definitions] if configuration and configuration.mode == "ipmi" else [],
+        manual_commands=[dict(hostname=profile["hostname"], command=(generate_ipmi_manual_command(profile) if configuration.mode == "ipmi" else generate_vmware_manual_command(configuration.endpoint, profile, configuration.mode, configuration.vmware_transport))) for profile in saved_definitions] if configuration and configuration.mode in {"ipmi", "vmware_soap", "vmware_rest"} else [],
         saved_passwords={str(profile.node_id): bool(profile.password_encrypted) for profile in configuration.profiles} if configuration else {},
-        verification_script=(generate_ipmi_verification_script(saved_definitions) if configuration.mode == "ipmi" else generate_oem_verification_script(configuration.endpoint, saved_definitions)) if configuration else "",
+        verification_script=(generate_vmware_verification_script(configuration.endpoint, saved_definitions, configuration.mode, configuration.vmware_transport) if configuration.mode.startswith("vmware_") else generate_ipmi_verification_script(saved_definitions) if configuration.mode == "ipmi" else generate_oem_verification_script(configuration.endpoint, saved_definitions)) if configuration else "",
         results=repository().step_results(project_id).get("08a", []),
         agents_form=FenceAgentsCheckForm(prefix="agents"),
         agent_results=repository().step_results(project_id).get("08a-fa", []),

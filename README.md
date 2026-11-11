@@ -10,7 +10,7 @@
 
 Linux High Availability Cluster Builder & Lifecycle Manager.
 
-Current release: **0.1.14** (2026-11-09). Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
+Current release: **0.1.15** (2026-11-11). Release history is maintained in `CHANGELOG.md` and is also available from the Changelog link in the web interface.
 
 ClusterWeaver is free software licensed under the [GNU Affero General Public License v3.0](LICENSE). Modified versions offered to users over a network must make their corresponding source available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
@@ -20,16 +20,16 @@ Projects can be assigned to color-coded Project Groups with unique names and opt
 
 The generated remote workflow is divided into three collapsible phases. **Pre-Cluster Configuration** (steps 00–04) performs SSH bootstrap and discovery, network configuration and verification, `/etc/hosts` management, and preliminary checks. Step 00 exposes review, copy, and full-screen views for all three operations; its RHEL 7.9 network action is strictly read-only and reports NetworkManager or legacy network-scripts ownership, while RHEL 9.8 and 10.2 retain guarded configuration support. **Cluster Base Installation and Configuration** installs and verifies the Pacemaker packages (step 05), enables `pcsd` and authenticates the nodes (step 06), then creates the named cluster and verifies membership, `WaitForAll`, and quorum (step 07). Each action enforces its prerequisites and records results per node; explicitly skipping network configuration is recorded separately from successful verification.
 
-**Cluster STONITH Configuration and Testing** (steps 08a–08c) defines OEM profiles or individual iDRAC controllers, creates direct-IPMI fencing devices after successful checks, and verifies their configuration in read-only mode. Every phase shows its included steps and completion counters. Actual power testing is not implemented in this release.
+**Cluster STONITH Configuration and Testing** (steps 08a–08c) defines OEM, individual iDRAC or VMware vCenter profiles, creates direct-IPMI fencing devices after successful checks, and verifies their configuration in read-only mode. Every phase shows its included steps and completion counters. Actual power testing is not implemented in this release.
 
-## Version 0.1.14 highlights
+## Version 0.1.15 highlights
 
-- Skip network configuration (00c) explicitly after SSH discovery/trust, without remote network changes.
-- Validate gateways during editing and before saving/importing, including node-IP collisions and invalid subnet addresses.
-- Choose OEM profiles or one iDRAC per node. New resource names suggest the hostname's last two digits; saved custom names are preserved.
-- Use copyable single-line manual IPMI commands, English controls and per-node agent-check timestamps.
-- Create fencing devices in background step 08b with previews, confirmation, peer-access checks and conflict protection; inspect them in read-only step 08c.
-- Offline installation remains deprecated; no offline installation bundle is published.
+- Configure VMware vCenter VM mappings in 08a with SOAP or REST; new virtual VMware projects default to SOAP and editable uppercase VM names.
+- Run read-only VM status through project SSH from cluster nodes and check the selected fence agent on every node.
+- Display/copy one manual CLI status command per node with saved public fields and a password placeholder.
+- Select `--ssl --ssl-insecure` with a checkbox, or verified SSL when cleared; no explicit port argument is generated.
+- Apply database migrations through `0020_vmware_ssl`; protected controller passwords remain outside exports and application Git.
+- VMware 08b/08c and real power testing remain future work. Offline installation remains deprecated; no offline bundle is published.
 
 ## Development prerequisites
 
@@ -224,11 +224,11 @@ migrations/        # Alembic schema history
 tests/             # unit and web integration tests
 ```
 
-The MVP currently excludes Pacemaker resource configuration, storage provisioning, STONITH creation, Ansible integration, and RHEL 8 support. Remote SSH operations are gated by workflow prerequisites and explicit confirmation where they modify node state.
+The MVP currently excludes application-resource configuration, storage provisioning, VMware/OEM fencing-device creation, real power testing, Ansible integration, and RHEL 8 support. Remote SSH operations are gated by workflow prerequisites and explicit confirmation where they modify node state.
 
 ## Step 08a: DELL OEM profiles
 
-The **Cluster STONITH Configuration and Testing** workflow currently includes only **08a**. Define the DELL OpenManage Enterprise endpoint (hostname or IP, HTTPS/443), then the exact OEM profile name and userid for each node. Controller passwords are saved encrypted in SQLite and excluded from YAML, Git and portable `.cwp` archives.
+The **Cluster STONITH Configuration and Testing** workflow includes **08a–08c**; this section describes the OEM option in **08a**. Define the DELL OpenManage Enterprise endpoint (hostname or IP, HTTPS/443), then the exact OEM profile name and userid for each node. Controller passwords are saved encrypted in SQLite and excluded from YAML, Git and portable `.cwp` archives.
 
 **Save profiles** persists definitions. **Save and verify OEM profiles** sends read-only HTTPS GET requests from the ClusterWeaver server to DeviceService and ProfileService, with a TemplateService fallback for older appliances. Checks report missing names, case mismatches, incorrect or unverifiable device assignments, and disconnected devices. Returned status values are displayed; successful lookup does not certify profile health or fencing capability. Requests have an 8-second timeout and share a 45-second verification budget. Definition changes invalidate earlier 08a results.
 
@@ -281,3 +281,35 @@ Creation runs in the background with one project reservation, from one coordinat
 After 08b passes on every node, 08c inspects the saved direct-IPMI resources in the current CIB and runtime status. It verifies agent/controller/user/credentials/nodename bindings, enabled and managed state, actual monitor operations and timeouts, failure-timeout, recorded failure counts, quorum and peer controller status access. Disabled/stopped/failed/blocked resources, non-zero failure counts or unhealthy cluster state fail verification; absence of a recurring monitor is reported as a warning. Conditional policy rules require manual review.
 
 This is a read-only background operation: no configuration push, enable/disable, cleanup, reboot or power-off is requested. Individual results are stored as 08c; interrupted verification does not create a mutation-retry barrier. Definition or node identity changes invalidate affected 08c results. It does not certify actual power fencing, which remains a separate future test step. The STONITH phase now displays Steps 08a–08c and a 3-step completion counter with the same styling as the other macro groups.
+
+
+### Step 08a: VMware vCenter profiles
+
+New virtual VMware projects default to **VMware vCenter / fence_vmware_soap**.
+Existing saved modes remain unchanged. Select SOAP or REST, enter the vCenter
+hostname/IP and map each cluster hostname to its exact VM name. New VM names are suggested in uppercase and remain editable (SOAP also accepts
+an inventory path). Enter vCenter credentials in each node row; passwords use the
+existing encrypted storage and on-demand eye button, and are excluded from exports.
+No vCenter hostname is guessed from the project name.
+
+The selected agent runs **action=status** through project SSH on each corresponding
+cluster node. The saved SSL setting controls certificate verification. When verification is enabled, trust the vCenter CA on all nodes. Checks have a 20-second per-node limit and a shared 45-second budget.
+The separate agent check verifies the selected executable and metadata on every
+node, suggesting `dnf install fence-agents-all` if missing. The displayed standalone
+verification script prompts for passwords and runs on a cluster node. No power
+operation or resource creation occurs. Steps 08b/08c currently support direct iDRAC
+only; VMware device creation and power testing remain future work.
+
+Step 08a also offers **Show manual command** for saved VMware profiles. Each node has a copyable SOAP/REST status command with vCenter, userid and VM name prefilled, a password placeholder, certificate verification and a 20-second timeout. Run it on the indicated cluster node; append `--verbose` for debugging.
+
+
+VMware 08a provides **Use --ssl --ssl-insecure** (checked for new profiles). Checked uses exactly `--ssl --ssl-insecure`; unchecked uses `--ssl --ssl-secure`. No explicit `--ipport` is added. Migration `0020_vmware_ssl` corrects profiles previously saved with the mistakenly introduced HTTP option. The same settings apply to web verification and manual commands.
+
+### VMware SSH prerequisite and troubleshooting
+
+The web VMware check requires server-to-node project SSH access, installed and verified
+through **00k / project SSH access**. Step **00b** creates node-to-node trust and does
+not provide this server-owned credential. A missing-project-key error occurs before
+any VMware agent or vCenter request. Install/verify project access through the UI with
+the current root credential, then retry 08a. Do not copy node private keys into the
+service or remove working keys to work around this prerequisite.

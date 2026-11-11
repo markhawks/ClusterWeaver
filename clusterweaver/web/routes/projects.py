@@ -81,7 +81,7 @@ def create_imported_project(imported: dict):
     if imported.get("stonith"):
         from clusterweaver.persistence.models import StonithConfigurationRecord, StonithProfileRecord
         definition = imported["stonith"]
-        configuration = StonithConfigurationRecord(project=record, hardware="dell", mode=definition.get("mode", "oem"), endpoint=definition["endpoint"])
+        configuration = StonithConfigurationRecord(project=record, hardware=definition["hardware"], mode=definition.get("mode", "oem"), endpoint=definition["endpoint"], vmware_transport=definition.get("vmware_transport", "https_secure"))
         db.session.add(configuration)
         nodes = {node.hostname: node for node in record.nodes}
         for profile in definition["profiles"]:

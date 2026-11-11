@@ -226,14 +226,21 @@ def _validate_project_document(document) -> dict:
     stonith = document.get("stonith")
     if stonith is not None:
         from clusterweaver.core.services.dell_oem import validate_oem_endpoint
-        if not isinstance(stonith, dict) or stonith.get("hardware") != "dell":
+        if not isinstance(stonith, dict) or stonith.get("hardware") not in {"dell", "vmware"}:
             raise ProjectTransferError("Unsupported STONITH profile hardware.")
         mode = stonith.get("mode", "oem")
-        if mode not in {"oem", "ipmi"}:
+        if mode not in {"oem", "ipmi", "vmware_soap", "vmware_rest"}:
             raise ProjectTransferError("Unsupported STONITH connection mode.")
-        endpoint = _text(stonith.get("endpoint"), "OEM endpoint", required=mode == "oem", maximum=253)
+        if stonith["hardware"] != ("vmware" if mode.startswith("vmware_") else "dell"):
+            raise ProjectTransferError("STONITH hardware does not match the selected agent.")
+        transport = stonith.get("vmware_transport", "https_secure")
+        if transport == "http":
+            transport = "https_insecure"
+        if transport not in {"https_secure", "https_insecure"}:
+            raise ProjectTransferError("Unsupported VMware connection transport.")
+        endpoint = _text(stonith.get("endpoint"), "OEM endpoint", required=mode != "ipmi", maximum=253)
         try:
-            if mode == "oem":
+            if mode != "ipmi":
                 validate_oem_endpoint(endpoint)
         except ValueError as exc:
             raise ProjectTransferError(str(exc)) from exc
@@ -246,7 +253,7 @@ def _validate_project_document(document) -> dict:
             if not isinstance(profile, dict):
                 raise ProjectTransferError("Invalid STONITH profile.")
             hostname = _text(profile.get("hostname"), "STONITH hostname", required=True, maximum=253)
-            name = _text(profile.get("profile_name"), "DELL profile name", required=mode == "oem", maximum=160)
+            name = _text(profile.get("profile_name"), "DELL profile name", required=mode != "ipmi", maximum=160)
             controller = _text(profile.get("controller_endpoint"), "iDRAC endpoint", required=mode == "ipmi", maximum=253)
             resource = _text(profile.get("resource_name"), "STONITH resource name", required=mode == "ipmi", maximum=160)
             if mode == "ipmi":
@@ -255,14 +262,16 @@ def _validate_project_document(document) -> dict:
                     validate_ipmi_definition(controller, resource)
                 except ValueError as exc:
                     raise ProjectTransferError(str(exc)) from exc
-            unique_name = name if mode == "oem" else resource
+            unique_name = resource if mode == "ipmi" else name
             username = _text(profile.get("username"), "OEM userid", required=True, maximum=128)
             if hostname not in hostnames or hostname in assigned or unique_name.casefold() in names or ":" in username:
                 raise ProjectTransferError("Invalid or duplicate STONITH hostname, profile, or userid.")
+            if mode.startswith("vmware_") and any(c in name + username for c in "\r\n\x00"):
+                raise ProjectTransferError("VM names and vCenter userids cannot contain newlines or NUL characters.")
             assigned.add(hostname)
             names.add(unique_name.casefold())
             profiles.append(dict(hostname=hostname, profile_name=name, username=username, controller_endpoint=controller, resource_name=resource))
-        result["stonith"] = dict(hardware="dell", mode=mode, endpoint=endpoint, profiles=profiles)
+        result["stonith"] = dict(hardware=stonith["hardware"], mode=mode, endpoint=endpoint, vmware_transport=transport, profiles=profiles)
     return result
 
 
